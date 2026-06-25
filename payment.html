@@ -72,8 +72,20 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-    const billingAmount = localStorage.getItem("amount") || "0";
+    // 🏷️ Fetch order parameters from local data memory
+    let billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
+    const printType = localStorage.getItem("printType") || "document"; 
+    const totalPages = parseInt(localStorage.getItem("pages")) || 1;
+
+    // 💰 Recalculate based on updated rules if local storage fallback defaults are active
+    if (billingAmount === "0" || billingAmount === "") {
+        if (printType === "a4_bw" || printType === "document") {
+            billingAmount = (totalPages * 5).toString(); // A4 Black & White rate: ₹5
+        } else if (printType === "aadhar" || printType === "pan") {
+            billingAmount = "10"; // Aadhar & PAN identity rate: ₹10
+        }
+    }
 
     const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
     // ⚠️ CRITICAL STEP: Replace this placeholder string with your long public anon key that starts with "eyJ..."
