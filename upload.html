@@ -13,7 +13,7 @@
             width: 100%;
             max-width: 400px;
             height: 350px;
-            margin: 15px auto;
+            margin: 1px auto;
             border: 2px dashed #1976d2;
             border-radius: 8px;
             background: #f8f9fa;
@@ -47,7 +47,7 @@
             max-width: 100%;
             height: auto;
             display: block;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border: 1px solid #ddd;
             border-radius: 4px;
         }
@@ -64,18 +64,18 @@
         }
 
         .input-group {
-            margin-bottom: 15px;
+            margin-bottom: 1px;
         }
         .input-group label {
             font-size: 14px;
-            color: #555;
+            color: #;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: px;
             font-weight: bold;
         }
         
         .force-grayscale {
-            filter: grayscale(100%) brightness(105%) contrast(105%) !important;
+            filter: grayscale(100%) brightness(10%) contrast(10%) !important;
         }
     </style>
 </head>
@@ -95,13 +95,13 @@
 
     <div class="preview-wrapper" id="previewWrapperFrame">
         <div class="preview-box" id="docPreview">
-            <span style="margin-top: 150px;">No file selected yet for preview</span>
+            <span style="margin-top: 10px;">No file selected yet for preview</span>
         </div>
     </div>
 
     <div class="input-group">
         <label>Pages to Print:</label>
-        <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate(); previewDocument();" required>
+        <input type="text" id="pages" placeholder="e.g., All, 1, 3-" value="All" oninput="calculate(); previewDocument();" required>
     </div>
 
     <div class="input-group">
@@ -112,12 +112,12 @@
     <div class="input-group">
         <label>Print Type:</label>
         <select id="type" onchange="calculate(); applyPreviewFilter();">
-            <option value="5">Black & White (₹5 / page)</option>
+            <option value="">Black & White (₹ / page)</option>
             <option value="10">Color (₹10 / page)</option>
         </select>
     </div>
 
-    <h3 id="total">Total: ₹5</h3>
+    <h3 id="total">Total: ₹10</h3>
 
     <button onclick="submitOrder()">
         Submit Order
