@@ -76,7 +76,9 @@
     const targetOrderId = localStorage.getItem("current_order_id");
 
     const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
-const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
+    // ⚠️ CRITICAL FIXED STEP: Make sure to replace this line completely with your long public key that begins with "eyJ..."
+    const SUPABASE_KEY = "YOUR_PROJECTS_LONG_PUBLIC_ANON_KEY_STARTING_WITH_eyJ";
+    
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     window.onload = function() {
@@ -95,7 +97,7 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
         const amountInPaise = parseFloat(billingAmount) * 100;
 
         const options = {
-            "key": "rzp_live_T5K9Isn4Ds0Qrx", // ⚠️ Put your live/test Razorpay Key ID here
+            "key": "rzp_live_T5K9Isn4Ds0Qrx", 
             "amount": amountInPaise.toString(),
             "currency": "INR",
             "name": "Digital Print Shop",
@@ -103,11 +105,12 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
             "handler": async function (response) {
                 try {
                     if (targetOrderId) {
+                        const numericId = parseInt(targetOrderId);
                         // Automatically update status variables straight to Paid state
                         await client
                             .from("orders")
                             .update({ payment_status: "Paid" })
-                            .eq("id", targetOrderId);
+                            .eq("id", numericId);
                     }
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
                     window.location.href = "success.html";
@@ -129,11 +132,19 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
         
         try {
             if (targetOrderId) {
-                // Update tracking profile to alert admin queue layout monitor matrix
-                await client
+                const numericId = parseInt(targetOrderId);
+                // Convert ID to a number explicitly to execute updates securely
+                const { data, error } = await client
                     .from("orders")
                     .update({ payment_status: "Cash Payment Pending" })
-                    .eq("id", targetOrderId);
+                    .eq("id", numericId)
+                    .select();
+
+                if (error) {
+                    console.error("Database sync blocker alert:", error);
+                    alert("Status Sync Error: " + error.message);
+                    return;
+                }
             }
         } catch (dbError) {
             console.error("Database tracker update error:", dbError);
