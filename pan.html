@@ -179,12 +179,12 @@
     <div class="input-group">
         <label>Print Type:</label>
         <select id="type" onchange="calculatePrice()">
-            <option value="5" selected>Black & White (₹5 / copy)</option>
-            <option value="10">Color (₹10 / copy)</option>
+            <option value="10_bw" selected>Black & White (₹10 / copy)</option>
+            <option value="10_color">Color (₹10 / copy)</option>
         </select>
     </div>
 
-    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹5</h3>
+    <h3 id="totalPrice" style="color: #1976d2; text-align: center;">Total Price: ₹10</h3>
 
     <br>
     <button onclick="submitPAN()" style="background:#1976d2;">Submit Order</button>
@@ -276,7 +276,10 @@ function resetZoom() {
 function calculatePrice() {
     let copies = parseInt(document.getElementById("copies").value) || 1;
     if (copies < 1) copies = 1;
-    let baseRate = parseInt(document.getElementById("type").value); 
+    let typeValue = document.getElementById("type").value; 
+    
+    // Safely parse baseline integer from updated options setup string formats
+    let baseRate = parseInt(typeValue) || 10;
     document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
 }
 
@@ -615,10 +618,11 @@ async function submitPAN() {
 
     const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
 
-    let baseRate = parseInt(typeSelect); 
+    let baseRate = 10; 
     let totalAmountCalculation = copiesInput * baseRate;
 
-    const baseColorType = (baseRate == 5 ? "Black & White" : "Color");
+    // Track original type selection using strings
+    const baseColorType = (typeSelect === "10_bw" ? "Black & White" : "Color");
     const trackingPrintSummaryText = `PAN Card - ${baseColorType} [${copiesInput} Copies]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([{
@@ -628,7 +632,7 @@ async function submitPAN() {
         pages: copiesInput, 
         amount: totalAmountCalculation,
         front_url: frontUrl, 
-        back_url: "", // Back URL left intentionally blank for single-sided mapping
+        back_url: "", 
         payment_status: "Pending", 
         payment_id: ""
     }]).select();
@@ -636,10 +640,10 @@ async function submitPAN() {
     if (error) { alert(error.message); return; }
 
     localStorage.setItem("frontImage", frontUrl);
-    localStorage.setItem("backImage", ""); // Set to empty string for payment logic routing
+    localStorage.setItem("backImage", ""); 
     localStorage.setItem("amount", totalAmountCalculation);
     localStorage.setItem("mobile", mobile);
-    localStorage.setItem("printType", "id"); // Uses id system fallback routing to uniform checkout targets
+    localStorage.setItem("printType", "id"); 
     
     if (insertedOrder && insertedOrder.length > 0) {
         localStorage.setItem("current_order_id", insertedOrder[0].id); 
