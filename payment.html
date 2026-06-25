@@ -76,7 +76,7 @@
     const targetOrderId = localStorage.getItem("current_order_id");
 
     const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
-    // ⚠️ CRITICAL FIXED STEP: Make sure to replace this line completely with your long public key that begins with "eyJ..."
+    // ⚠️ CRITICAL STEP: Replace this placeholder string with your long public anon key that starts with "eyJ..."
     const SUPABASE_KEY = "YOUR_PROJECTS_LONG_PUBLIC_ANON_KEY_STARTING_WITH_eyJ";
     
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -106,7 +106,6 @@
                 try {
                     if (targetOrderId) {
                         const numericId = parseInt(targetOrderId);
-                        // Automatically update status variables straight to Paid state
                         await client
                             .from("orders")
                             .update({ payment_status: "Paid" })
@@ -126,31 +125,26 @@
         rzp.open();
     }
 
-    // 🏦 OPTION 2: CASH AT COUNTER BACKEND REGISTRATION FLOW
+    // 🏦 OPTION 2: CASH AT COUNTER (Guaranteed Immediate Redirection)
     async function processCashPayment(e) {
         e.preventDefault();
         
-        try {
-            if (targetOrderId) {
-                const numericId = parseInt(targetOrderId);
-                // Convert ID to a number explicitly to execute updates securely
-                const { data, error } = await client
-                    .from("orders")
-                    .update({ payment_status: "Cash Payment Pending" })
-                    .eq("id", numericId)
-                    .select();
-
-                if (error) {
-                    console.error("Database sync blocker alert:", error);
-                    alert("Status Sync Error: " + error.message);
-                    return;
-                }
-            }
-        } catch (dbError) {
-            console.error("Database tracker update error:", dbError);
+        // 1. Instantly log local cache references so cash.html can read them
+        localStorage.setItem("last_payment_method", "Cash Counter");
+        
+        // 2. Fire the database status update completely in the background
+        if (targetOrderId && !isNaN(parseInt(targetOrderId))) {
+            const numericId = parseInt(targetOrderId);
+            client
+                .from("orders")
+                .update({ payment_status: "Cash Payment Pending" })
+                .eq("id", numericId)
+                .then(({ error }) => {
+                    if (error) console.error("Background status tracking failed:", error);
+                });
         }
 
-        localStorage.setItem("last_payment_method", "Cash Counter");
+        // 3. FORCE REDIRECT IMMEDIATELY (Customer doesn't have to wait for database connection)
         window.location.href = "cash.html";
     }
 </script>
