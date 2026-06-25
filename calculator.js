@@ -1,1 +1,0 @@
-function calculate(){var p=document.getElementById('pages').value;var t=document.getElementById('type').value;document.getElementById('total').innerHTML='Total: ₹'+(p*t);}
