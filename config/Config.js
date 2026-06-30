@@ -7,8 +7,8 @@ const SITE_CONFIG = {
     STORE_NAME: "High School Printing",
     
     // 🔗 Supabase Configuration Database Parameters
-    SUPABASE_URL: "https://irqlvuphoblgjqysteto.supabase.co",
-    SUPABASE_KEY: "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-",
+    SUPABASE_URL: "https://tyjrrgburseqhtofbgom.supabase.co",
+    SUPABASE_KEY: "sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx",
     
     // 💳 Razorpay Online Gateway Public API Key
     RAZORPAY_KEY_ID: "rzp_live_T6wxJ6u8vpDN2u",
