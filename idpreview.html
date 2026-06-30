@@ -31,7 +31,6 @@
             width: 100%;
         }
 
-        /* 🌟 DUAL CARD POSITIONING: Sets front side to top-left and back side to top-right layout */
         .print-container.two-sided-layout {
             flex-direction: row;
             justify-content: flex-start;
@@ -41,7 +40,6 @@
             padding-left: 15mm; 
         }
 
-        /* 🌟 PAN POSITIONING: Places a single card directly in top-middle orientation */
         .print-container.single-sided-layout {
             flex-direction: column;
             justify-content: flex-start;
@@ -58,7 +56,6 @@
             display: block;
         }
 
-        /* FORCE GRAYSCALE OVERRIDE ENGINE */
         .print-container.bw-mode,
         .print-container.bw-mode .card-img,
         .print-container.bw-mode canvas,
@@ -114,7 +111,6 @@
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     
-    // Clean string component decoding 
     const frontUrl = decodeURIComponent(urlParams.get('front') || '');
     const backUrl = decodeURIComponent(urlParams.get('back') || '');
     const printTypeSummary = decodeURIComponent(urlParams.get('summary') || ''); 
@@ -133,7 +129,6 @@
         backImgEl.style.display = "block";
     }
 
-    // Dynamic layout controller evaluation
     if (backUrl && backUrl !== "null" && backUrl.trim() !== "") {
         printContainer.classList.add('two-sided-layout');
     } else {
@@ -141,7 +136,6 @@
         backImgEl.style.display = "none";
     }
 
-    // Strict color channel filter verification
     if (
         printTypeSummary.toLowerCase().includes('black') || 
         printTypeSummary.toLowerCase().includes('b&w') || 
