@@ -59,7 +59,7 @@
 
 <div class="payment-container">
     <h2>Select Payment Method</h2>
-    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance balance parameters.</p>
+    <p style="color: #666; font-size: 14px;">Choose how you want to settle your printing tab balance parameters.</p>
     
     <div class="amount-display" id="priceDisplay">Amount to Pay: ₹0</div>
 
@@ -70,63 +70,65 @@
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 
 <script>
-    // 🏷️ Fetch order parameters from local data memory
-    let billingAmount = localStorage.getItem("amount") || "0";
+    const billingAmount = localStorage.getItem("amount") || "0";
     const targetOrderId = localStorage.getItem("current_order_id");
-    const printType = localStorage.getItem("printType") || "document"; 
-    const totalPages = parseInt(localStorage.getItem("pages")) || 1;
 
-    // 💰 Recalculate based on updated rules if local storage fallback defaults are active
-    if (billingAmount === "0" || billingAmount === "") {
-        if (printType === "a4_bw" || printType === "document") {
-            billingAmount = (totalPages * 5).toString(); // A4 Black & White rate: ₹5
-        } else if (printType === "aadhar" || printType === "pan") {
-            billingAmount = "10"; // Aadhar & PAN identity rate: ₹10
-        }
-    }
-
-    const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
-    // ⚠️ CRITICAL STEP: Replace this placeholder string with your long public anon key that starts with "eyJ..."
-    const SUPABASE_KEY = "YOUR_PROJECTS_LONG_PUBLIC_ANON_KEY_STARTING_WITH_eyJ";
-    
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     window.onload = function() {
+        if (billingAmount === "0" || !targetOrderId) {
+            window.location.href = "upload.html";
+            return;
+        }
         document.getElementById("priceDisplay").innerText = "Amount to Pay: ₹" + billingAmount;
     };
 
-    // 🌐 OPTION 1: ONLINE GATEWAY ENGINE ROUTE
-    function openRazorpayCheckout(e) {
+    async function openRazorpayCheckout(e) {
         e.preventDefault();
 
-        if (billingAmount === "0" || billingAmount === "") {
-            alert("Invalid order amount profile.");
-            return;
+        const amountInPaise = parseFloat(billingAmount) * 100;
+        let updateFired = false;
+
+        try {
+            await client.from("orders").update({ payment_status: "Processing" }).eq("id", targetOrderId);
+        } catch (err) {
+            console.error("Initial processing state update skip", err);
         }
 
-        const amountInPaise = parseFloat(billingAmount) * 100;
-
         const options = {
-            "key": "rzp_live_T5K9Isn4Ds0Qrx", 
+            "key": window.SITE_CONFIG.RAZORPAY_KEY_ID || "", 
             "amount": amountInPaise.toString(),
             "currency": "INR",
-            "name": "Digital Print Shop",
-            "description": "Payment for Order #" + (targetOrderId || "Bulk"),
+            "name": window.SITE_CONFIG.STORE_NAME || "Digital Print Shop",
+            "description": "Payment for Order #" + targetOrderId,
+            "notes": {
+                "current_order_id": targetOrderId
+            },
+            "modal": {
+                "ondismiss": function() {
+                    console.log("Checkout overlay sheets dismissed.");
+                }
+            },
             "handler": async function (response) {
+                if (updateFired) return;
+                updateFired = true;
+
+                const preventClose = (event) => {
+                    event.preventDefault();
+                    event.returnValue = "Locking print session...";
+                };
+                window.addEventListener("beforeunload", preventClose);
+
                 try {
-                    if (targetOrderId) {
-                        const numericId = parseInt(targetOrderId);
-                        await client
-                            .from("orders")
-                            .update({ payment_status: "Paid" })
-                            .eq("id", numericId);
-                    }
+                    await client.from("orders").update({ payment_status: "Success" }).eq("id", targetOrderId);
                     localStorage.setItem("last_payment_method", "Razorpay Gateway");
+                    window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 } catch (err) {
-                    console.error("Database connection failure context: ", err);
+                    window.removeEventListener("beforeunload", preventClose);
                     window.location.href = "success.html";
                 }
             },
@@ -135,28 +137,32 @@
 
         const rzp = new Razorpay(options);
         rzp.open();
+
+        const silentPoller = setInterval(async () => {
+            if (updateFired) {
+                clearInterval(silentPoller);
+                return;
+            }
+            
+            if (rzp && rzp.checkout && rzp.checkout.closed === false) {
+                try {
+                    const { data } = await client.from("orders").select("payment_status").eq("id", targetOrderId).single();
+                    if (data && (data.payment_status === "Success" || data.payment_status === "Paid")) {
+                        updateFired = true;
+                        clearInterval(silentPoller);
+                        window.location.href = "success.html";
+                    }
+                } catch(e) {}
+            }
+        }, 1500);
     }
 
-    // 🏦 OPTION 2: CASH AT COUNTER (Guaranteed Immediate Redirection)
     async function processCashPayment(e) {
         e.preventDefault();
-        
-        // 1. Instantly log local cache references so cash.html can read them
+        try {
+            await client.from("orders").update({ payment_status: "Cash Payment Pending" }).eq("id", targetOrderId);
+        } catch (dbError) {}
         localStorage.setItem("last_payment_method", "Cash Counter");
-        
-        // 2. Fire the database status update completely in the background
-        if (targetOrderId && !isNaN(parseInt(targetOrderId))) {
-            const numericId = parseInt(targetOrderId);
-            client
-                .from("orders")
-                .update({ payment_status: "Cash Payment Pending" })
-                .eq("id", numericId)
-                .then(({ error }) => {
-                    if (error) console.error("Background status tracking failed:", error);
-                });
-        }
-
-        // 3. FORCE REDIRECT IMMEDIATELY (Customer doesn't have to wait for database connection)
         window.location.href = "cash.html";
     }
 </script>
