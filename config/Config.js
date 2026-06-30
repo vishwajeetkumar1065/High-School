@@ -4,7 +4,7 @@
 
 const SITE_CONFIG = {
     // 🏪 Store Settings
-    STORE_NAME: "Vishwajeet Cyber Cafe",
+    STORE_NAME: "High School Printing",
     
     // 🔗 Supabase Configuration Database Parameters
     SUPABASE_URL: "https://irqlvuphoblgjqysteto.supabase.co",
@@ -22,7 +22,7 @@ const SITE_CONFIG = {
         },
         // 🪪 Aadhaar Card Print Rates (idprint.html)
         AADHAAR: {
-            BLACK_WHITE: 5, // ₹5 per copy
+            BLACK_WHITE: 10, // ₹5 per copy
             COLOR: 10       // ₹10 per copy
         },
         // 💳 PAN Card Print Rates (pan.html)
