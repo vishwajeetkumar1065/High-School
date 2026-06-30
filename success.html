@@ -45,37 +45,20 @@
 <body>
 
 <div class="card">
-
     <div class="success">✓</div>
-
     <h2>Payment Successful</h2>
-
     <p>Your document has been received.</p>
-
     <p>Your payment was completed successfully.</p>
-
     <h3 id="paymentId"></h3>
-
     <p>Please wait while your document is printed.</p>
-
-    <a href="index.html">
-        New Order
-    </a>
-
+    <a href="index.html">New Order</a>
 </div>
 
 <script>
-
-const paymentId =
-    localStorage.getItem("payment_id");
-
+const paymentId = localStorage.getItem("payment_id");
 if (paymentId) {
-    document.getElementById("paymentId").innerHTML =
-        "Payment ID: " + paymentId;
+    document.getElementById("paymentId").innerHTML = "Payment ID: " + paymentId;
 }
-
 </script>
-
 </body>
-
 </html>
