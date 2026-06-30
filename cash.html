@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cash Payment Status</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -15,6 +17,7 @@
         body {
             background-color: #f4f6f9;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -32,7 +35,6 @@
             transition: all 0.4s ease;
         }
 
-        /* 🟡 Pending State Design Styles */
         .status-icon-pending {
             width: 80px;
             height: 80px;
@@ -53,7 +55,6 @@
             margin-bottom: 10px;
         }
 
-        /* 🟢 Success State Design Styles */
         .status-card.success-active {
             border-top: 8px solid #28a745;
             box-shadow: 0 10px 40px rgba(40, 167, 69, 0.15);
@@ -105,6 +106,16 @@
         .btn-new-order:hover {
             background-color: #1565c0;
         }
+
+        .debug-box {
+            margin-top: 15px;
+            font-size: 11px;
+            color: #888;
+            background: #eee;
+            padding: 5px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -123,52 +134,49 @@
     <p class="message" id="statusMessage">Please visit the shop counter now to pay cash. Keep this window open; it updates automatically the moment your bill is settled.</p>
 
     <a href="index.html" class="btn-new-order">➕ Add New Order</a>
+    
+    <div class="debug-box" id="debugTrackingId">Tracking ID: Loading...</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-   const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
-const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-    // Try reading tracking token variables from session store layout
-    let currentOrderId = localStorage.getItem("current_order_id");
+    let currentOrderId = null;
+
+    function getSavedOrderId() {
+        return localStorage.getItem("current_order_id") || 
+               localStorage.getItem("orderId") || 
+               localStorage.getItem("last_order_id");
+    }
 
     window.onload = function() {
-        console.log("🔍 Checking Saved Order ID:", currentOrderId);
-        
-        // Dynamic key fallback discovery loop
-        if (!currentOrderId) {
-            currentOrderId = localStorage.getItem("orderId") || localStorage.getItem("last_order_id");
-            console.log("🔄 Fallback alternative key match result:", currentOrderId);
-        }
+        currentOrderId = getSavedOrderId();
+        const debugBox = document.getElementById("debugTrackingId");
         
         if (!currentOrderId) {
-            document.getElementById("statusMessage").innerText = "Notice: Waiting for order tracking context data. Please keep this screen open.";
+            debugBox.innerText = "Tracking ID: NOT FOUND (localStorage is empty!)";
+            debugBox.style.color = "red";
             
-            // Auto-detect if storage key appears late
-            const memoryHookLoop = setInterval(() => {
-                currentOrderId = localStorage.getItem("current_order_id") || localStorage.getItem("orderId");
+            const storageCheckInterval = setInterval(() => {
+                currentOrderId = getSavedOrderId();
                 if (currentOrderId) {
-                    console.log("🚀 Found ID dynamically via interval stream:", currentOrderId);
-                    clearInterval(memoryHookLoop);
+                    clearInterval(storageCheckInterval);
+                    debugBox.innerText = "Tracking ID: #" + currentOrderId;
+                    debugBox.style.color = "green";
                     runTrackingEngine();
                 }
             }, 1000);
             return;
         }
         
+        debugBox.innerText = "Tracking ID: #" + currentOrderId;
+        debugBox.style.color = "green";
         runTrackingEngine();
     };
 
     function runTrackingEngine() {
-        // Run verification steps instantly on lifecycle mount
         checkCurrentStatus();
-        
-        // Turn on real-time broadcast stream channels
         listenForAdminPaymentApproval();
-        
-        // 3-second secure fallback polling loop ensures view matches database state
         setInterval(checkCurrentStatus, 3000);
     }
 
@@ -183,18 +191,20 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
                 .maybeSingle(); 
 
             if (data) {
-                console.log("📊 Database payment_status check response:", data.payment_status);
+                console.log("📊 Polling status:", data.payment_status);
                 const currentStatus = (data.payment_status || '').toLowerCase().trim();
-                if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed') {
+                if (currentStatus === 'paid' || currentStatus === 'success' || currentStatus === 'completed' || currentStatus === 'paid cash') {
                     showPaymentSuccessScreen();
                 }
             }
         } catch (err) {
-            console.error("Polling stream exception alert:", err);
+            console.error("Polling error:", err);
         }
     }
 
     function listenForAdminPaymentApproval() {
+        if (!currentOrderId) return;
+        
         client
             .channel('cash-status-stream')
             .on('postgres_changes', { 
@@ -203,9 +213,9 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
                 table: 'orders',
                 filter: `id=eq.${currentOrderId}`
             }, payload => {
-                console.log("⚡ Real-time update string capture event:", payload.new.payment_status);
+                console.log("⚡ Real-time change:", payload.new.payment_status);
                 const updatedStatus = (payload.new.payment_status || '').toLowerCase().trim();
-                if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed') {
+                if (updatedStatus === 'paid' || updatedStatus === 'success' || updatedStatus === 'completed' || updatedStatus === 'paid cash') {
                     showPaymentSuccessScreen();
                 }
             })
@@ -214,11 +224,9 @@ const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
 
     function showPaymentSuccessScreen() {
         document.getElementById("pendingArea").style.display = "none";
-        
         document.getElementById("successIcon").style.display = "flex";
         document.getElementById("successTitle").style.display = "block";
         document.getElementById("statusCard").classList.add("success-active");
-        
         document.getElementById("statusMessage").innerText = "Thank you! Your cash payment has been processed and your print files are sent directly to the machine queue.";
         document.getElementById("statusMessage").style.color = "#155724";
     }
