@@ -3,41 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>High School Online Printing </title>
+    <title>High School Printing</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <header>
-    <h1>High School Online Printing</h1>
+    <h1 id="shopHeader">High School Printing</h1>
     <p>Online Printing Service</p>
 </header>
 
 <div class="card">
-
     <h2>Print Rates</h2>
+    <p id="rateA4">A4 Print: B/W ₹5 | Color ₹10</p>
+    <p id="rateAadhaar">Aadhaar Card: B/W ₹5 | Color ₹10</p>
+    <p id="ratePAN">PAN Card: B/W ₹5 | Color ₹10</p>
 
-    <p>B/W ₹10 per page</p>
-
-    <p>Color ₹10 per page</p>
-
-    <a class="btn" href="upload.html">
-       A4 Document Print
-    </a>
-
+    <a class="btn" href="upload.html">A4 Document Print</a>
     <br><br>
-
-    <a class="btn" href="idprint.html">
-       Aadhaar Card Print
-    </a>
-
+    <a class="btn" href="idprint.html">Aadhaar Card Print</a>
     <br><br>
-
-    <a class="btn" href="pan.html">
-       PAN Card Print
-    </a>
-
+    <a class="btn" href="pan.html">PAN Card Print</a>
 </div>
 
+<script src="config.js"></script>
+<script>
+    window.onload = function() {
+        if(window.SITE_CONFIG) {
+            if(window.SITE_CONFIG.STORE_NAME) {
+                document.getElementById("shopHeader").innerText = window.SITE_CONFIG.STORE_NAME;
+            }
+            const p = window.SITE_CONFIG.PRICING;
+            if(p) {
+                document.getElementById("rateA4").innerText = `A4 Print: B/W ₹${p.A4.BLACK_WHITE} | Color ₹${p.A4.COLOR}`;
+                document.getElementById("rateAadhaar").innerText = `Aadhaar Card: B/W ₹${p.AADHAAR.BLACK_WHITE} | Color ₹${p.AADHAAR.COLOR}`;
+                document.getElementById("ratePAN").innerText = `PAN Card: B/W ₹${p.PAN.BLACK_WHITE} | Color ₹${p.PAN.COLOR}`;
+            }
+        }
+    };
+</script>
 </body>
 </html>
