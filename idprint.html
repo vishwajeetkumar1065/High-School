@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -7,6 +7,7 @@
     <title>ID Card Print (Perspective Tool)</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
         * {
             touch-action: manipulation;
@@ -161,12 +162,12 @@
     <div class="input-group">
         <label>Print Type Mode:</label>
         <select id="type" onchange="calculatePrice(); applyLiveGrayscalePreviewFilter();">
-            <option value="10" selected>Black & White (₹10 / copy)</option>
-            <option value="10_color">Color (₹10 / copy)</option>
+            <option value="5" selected>Black & White</option>
+            <option value="10">Color</option>
         </select>
     </div>
 
-    <h3 id="totalPrice" style="color: #1976d2; text-align: center; margin-bottom: 20px;">Total Price: ₹10</h3>
+    <h3 id="totalPrice" style="color: #1976d2; text-align: center; margin-bottom: 20px;">Total Price: ₹0</h3>
 
     <hr>
 
@@ -227,12 +228,19 @@
 </div>
 
 <script>
-const SUPABASE_URL = "https://tyjrrgburseqhtofbgom.supabase.co";
-const SUPABASE_KEY ="sb_publishable_gJA0Y7zoI1YsDcC2dQi05Q_QyQVxGSx";
-const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
-let frontBlob = null;
-let backBlob = null;
+let frontDataUrl = null;
+let backDataUrl = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+    const typeDropdown = document.getElementById("type");
+    if(window.SITE_CONFIG && window.SITE_CONFIG.PRICING) {
+        typeDropdown.options[0].text = `Black & White (₹${window.SITE_CONFIG.PRICING.AADHAAR.BLACK_WHITE} / copy)`;
+        typeDropdown.options[1].text = `Color (₹${window.SITE_CONFIG.PRICING.AADHAAR.COLOR} / copy)`;
+    }
+    calculatePrice();
+});
 
 const engine = {
     front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 },
@@ -310,17 +318,15 @@ function resetZoom(side) {
 function calculatePrice() {
     let copies = parseInt(document.getElementById("copies").value) || 1;
     if (copies < 1) copies = 1;
-    let selectedType = document.getElementById("type").value; 
-    
-    // Parse integer baseline price from values ("10" and "10_color" both resolve safely to 10)
-    let baseRate = parseInt(selectedType) || 10;
+    let typeSelect = document.getElementById("type").value;
+    let baseRate = (typeSelect == "5") ? window.SITE_CONFIG.PRICING.AADHAAR.BLACK_WHITE : window.SITE_CONFIG.PRICING.AADHAAR.COLOR;
     document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
 }
 
 function applyLiveGrayscalePreviewFilter() {
     const frontImg = document.getElementById("frontPreviewImg");
     const backImg = document.getElementById("backPreviewImg");
-    const isBw = document.getElementById("type").value === "10";
+    const isBw = document.getElementById("type").value == 5;
     
     if (isBw) {
         if(frontImg) frontImg.classList.add("force-grayscale");
@@ -434,7 +440,7 @@ function projectPerspective(srcImg, corners, targetW, targetH) {
         }
     }
 
-    const isBw = document.getElementById("type").value === "10";
+    const isBw = document.getElementById("type").value == 5;
     if (isBw) {
         const imgData = ctx.getImageData(0, 0, targetW, targetH);
         const data = imgData.data;
@@ -454,16 +460,77 @@ function saveSide(side) {
     closeFullscreen();
 
     const resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540);
-    document.getElementById(`${side}PreviewImg`).src = resultCanvas.toDataURL("image/jpeg");
+    const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
+    
+    document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
     document.getElementById(`${side}PreviewContainer`).style.display = "block";
     applyLiveGrayscalePreviewFilter();
 
-    resultCanvas.toBlob((baseBlob) => {
-        if (baseBlob) {
-            if (side === 'front') frontBlob = baseBlob;
-            else backBlob = baseBlob;
+    if (side === 'front') frontDataUrl = croppedDataUrl;
+    else backDataUrl = croppedDataUrl;
+}
+
+function generateMergedA4Blob() {
+    return new Promise((resolve) => {
+        const a4Canvas = document.createElement('canvas');
+        a4Canvas.width = 2480;
+        a4Canvas.height = 3508;
+        const ctx = a4Canvas.getContext('2d');
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
+
+        let frontLoaded = false;
+        let backLoaded = false;
+
+        function drawRoundedCard(img, x, y, width, height, radius) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            
+            ctx.clip();
+            ctx.drawImage(img, x, y, width, height);
+            ctx.restore();
         }
-    }, "image/jpeg", 0.90);
+
+        const frontImg = new Image();
+        frontImg.onload = function() {
+            drawRoundedCard(frontImg, 150, 150, 1010, 640, 50);
+            frontLoaded = true;
+            checkComplete();
+        };
+        frontImg.src = frontDataUrl;
+
+        if (backDataUrl) {
+            const backImg = new Image();
+            backImg.onload = function() {
+                drawRoundedCard(backImg, 1320, 150, 1010, 640, 50);
+                backLoaded = true;
+                checkComplete();
+            };
+            backImg.src = backDataUrl;
+        } else {
+            backLoaded = true;
+            checkComplete();
+        }
+
+        function checkComplete() {
+            if (frontLoaded && backLoaded) {
+                a4Canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, "image/jpeg", 0.92);
+            }
+        }
+    });
 }
 
 async function submitID() {
@@ -471,43 +538,36 @@ async function submitID() {
     const mobile = document.getElementById("mobile").value.trim();
     const copiesInput = parseInt(document.getElementById("copies").value) || 1;
     const typeSelect = document.getElementById("type").value;
-    const isBw = typeSelect === "10";
+    const isBw = typeSelect == 5;
 
     if (!name || !mobile) { alert("Enter customer details."); return; }
-    if (!frontBlob) { alert("Save Front crop first."); return; }
+    if (!frontDataUrl) { alert("Save Front crop first."); return; }
 
-    alert("Saving card order package... Please wait.");
+    alert("Merging ID sides and saving package... Please wait.");
+    
+    const finalA4Blob = await generateMergedA4Blob();
+
     const prefix = isBw ? "bw_" : "color_";
     const timestamp = Date.now();
-    const frontName = `${timestamp}_${prefix}front.jpg`;
-    const backName = backBlob ? `${timestamp}_${prefix}back.jpg` : "";
+    const fileName = `${timestamp}_${prefix}merged_a4.jpg`;
 
-    const frontUpload = await client.storage.from("documents").upload(frontName, frontBlob, { 
+    const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
         contentType: "image/jpeg",
         upsert: true 
     });
-    if (frontUpload.error) { alert("Front Upload Failed: " + frontUpload.error.message); return; }
+    
+    if (uploadResponse.error) { alert("Upload Failed: " + uploadResponse.error.message); return; }
 
-    let backUrl = "";
-    if (backBlob && backName) {
-        const backUpload = await client.storage.from("documents").upload(backName, backBlob, { 
-            contentType: "image/jpeg",
-            upsert: true 
-        });
-        if (backUpload.error) { alert("Back Upload Failed: " + backUpload.error.message); return; }
-        backUrl = client.storage.from("documents").getPublicUrl(backName).data.publicUrl;
-    }
-
-    const frontUrl = client.storage.from("documents").getPublicUrl(frontName).data.publicUrl;
-    let baseRate = 10;
+    const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+    let baseRate = isBw ? window.SITE_CONFIG.PRICING.AADHAAR.BLACK_WHITE : window.SITE_CONFIG.PRICING.AADHAAR.COLOR;
     let totalAmountCalculation = copiesInput * baseRate;
 
     const printLabel = isBw ? "Black & White" : "Color";
-    const cardLayoutText = backUrl ? `Document ID - ${printLabel} [${copiesInput} Copies]` : `PAN - ${printLabel} [${copiesInput} Copies]`;
+    const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
 
     const { data: insertedOrder, error } = await client.from("orders").insert([{
-        customer_name: name, mobile: mobile, print_type: cardLayoutText, pages: copiesInput, amount: totalAmountCalculation,
-        front_url: frontUrl, back_url: backUrl || null, payment_status: "Pending", payment_id: ""
+        customer_name: name, mobile: mobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
+        file_url: publicUrl, front_url: null, back_url: null, payment_status: "Pending", payment_id: ""
     }]).select();
 
     if (error) { alert("Database Insertion Error: " + error.message); return; }
@@ -520,7 +580,6 @@ async function submitID() {
     window.location.href = "payment.html";
 }
 
-// ADVANCED MULTI-TOUCH ZOOM & PAN EVENT SYSTEM FOR MOBILE PHONES
 ['front', 'back'].forEach((side) => {
     const canvas = engine[side].canvas;
     let lastX = 0; let lastY = 0;
@@ -561,7 +620,7 @@ async function submitID() {
 
     canvas.addEventListener('touchmove', function(e) {
         const s = engine[side]; if (!s.img) return;
-        if (e.cancelable) e.preventDefault();
+        if (e.cancelable) e.preventDefault(); 
 
         if (e.touches.length === 2) {
             const currentDist = Math.hypot(
@@ -573,7 +632,7 @@ async function submitID() {
 
             let scaleFactor = currentDist / s.lastTouchDist;
             let newZoom = s.zoom * scaleFactor;
-            newZoom = Math.max(1, Math.min(8, newZoom));
+            newZoom = Math.max(1, Math.min(8, newZoom)); 
 
             const rect = canvas.getBoundingClientRect();
             const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
