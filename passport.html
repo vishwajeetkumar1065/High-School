@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 Sirf OpenCV aur Supabase (AI yahan se hata diya taaki page block na ho) -->
-    <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
+    <!-- 🚀 CLEAN & STABLE CDNs (No .mjs files, No CORS) -->
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     
@@ -16,14 +17,14 @@
         .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { color: #1976d2; margin-top: 0; }
         
-        /* 🚀 Humesha Ready Status */
-        .ai-status { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 8px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
+        .ai-status { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 10px; border-radius: 4px; background: #fff3e0; color: #e65100; border: 1px dashed #ffb74d; }
         
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         
         .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; transition: opacity 0.3s; }
+        .upload-btn.disabled { opacity: 0.5; pointer-events: none; background: #ccc; border-color: #999; }
         input[type="file"] { display: none; }
         
         .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
@@ -47,18 +48,16 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
-    <!-- 🚀 SYSTEM HUMESHA READY RAHEGA -->
-    <div class="ai-status">
-        ✅ System Ready! You can upload photo now.
+    <div id="aiStatusBox" class="ai-status">
+        ⏳ Loading AI System... Please wait!
     </div>
 
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
-    <!-- 🚀 BUTTON UNLOCKED -->
-    <label class="upload-btn">
+    <label id="uploadLabel" class="upload-btn disabled">
         1. Select Customer Photo
-        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
+        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)" disabled>
     </label>
 
     <div class="controls">
@@ -95,9 +94,25 @@
 <script>
     let rawImg = new Image();
     let imgLoaded = false;
+    let aiReady = false;
     const perSheetRate = 30; 
 
-    // KOI interval/wait system nahi! Code ekdum free hai.
+    // 🚀 Check if AI script is loaded
+    let aiCheckInterval = setInterval(() => {
+        if (typeof window.imglyRemoveBackground !== 'undefined') {
+            aiReady = true;
+            clearInterval(aiCheckInterval);
+            
+            const aiStatusBox = document.getElementById("aiStatusBox");
+            aiStatusBox.innerHTML = "✅ AI Background Remover Ready!";
+            aiStatusBox.style.background = "#e8f5e9";
+            aiStatusBox.style.color = "#2e7d32";
+            aiStatusBox.style.border = "1px solid #4caf50";
+            
+            document.getElementById("uploadLabel").classList.remove("disabled");
+            document.getElementById("uploadImage").disabled = false;
+        }
+    }, 1000);
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -113,25 +128,18 @@
             rawImg.src = e.target.result;
             rawImg.onload = () => {
                 imgLoaded = true;
-                document.getElementById('processBtn').disabled = false;
-                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                if (aiReady) {
+                    document.getElementById('processBtn').disabled = false;
+                    document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                }
             };
         };
         reader.readAsDataURL(file);
     }
 
-    // 🚀 DYNAMIC AI LOADER: Ye sirf tab load hoga jab user Generate dabayega
-    async function getSafeAiRemover() {
-        if (window.myBgRemover) return window.myBgRemover;
-        
-        // Modern "import()" browser ki restrictions ko aaraam se bypass kar deta hai
-        const module = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.mjs');
-        window.myBgRemover = module.default;
-        return module.default;
-    }
-
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
+        if (!aiReady) return alert("AI is still loading. Please wait.");
 
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
@@ -143,28 +151,28 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            // STEP 1: LOAD AI SAFELY
-            status.innerText = "🤖 Waking up AI Engine... (Please wait)";
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-15 secs)";
             status.style.color = "#1565c0";
-            
-            const aiRemoverFunction = await getSafeAiRemover();
+            await new Promise(r => setTimeout(r, 100)); 
 
-            // STEP 2: REMOVE BACKGROUND
-            status.innerText = "🤖 Removing Background... (Takes 5-15 secs)";
-            
+            // Safely get the AI function
+            let bgRemover = window.imglyRemoveBackground;
+            if (typeof bgRemover !== 'function' && bgRemover && typeof bgRemover.default === 'function') {
+                bgRemover = bgRemover.default;
+            }
+
             const blob = await fetch(rawImg.src).then(res => res.blob());
             const config = { 
                 publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
             };
             
-            const transparentBlob = await aiRemoverFunction(blob, config);
+            const transparentBlob = await bgRemover(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
             noBgImg.src = transparentUrl;
             await new Promise((resolve) => { noBgImg.onload = resolve; });
 
-            // STEP 3: CROPPING & COLOR
             status.innerText = "✨ Cleaning Face and Adjusting Colors...";
             await new Promise(r => setTimeout(r, 50));
 
@@ -187,7 +195,7 @@
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // STEP 4: FACE CLEANING
+            // OpenCV Face Clean
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -207,7 +215,6 @@
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
 
-            // STEP 5: 4x6 LAYOUT
             status.innerText = "📄 Arranging 8 Photos on 4x6 Sheet...";
             
             const finalCvs = document.getElementById('finalCanvas');
@@ -240,7 +247,7 @@
 
         } catch (error) {
             console.error("AI Error:", error);
-            status.innerText = "❌ Network Error: AI load nahi ho paya. Please try again.";
+            status.innerText = "❌ Error: Photo ka background saaf nahi ho paya. Dobara koshish karein.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
