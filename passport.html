@@ -117,6 +117,8 @@
         reader.readAsDataURL(file);
     }
 
+    
+    
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
 
@@ -131,19 +133,26 @@
 
         try {
             // STEP 1: AI Background Removal
-            status.innerText = "🤖 Removing Background using AI... (Takes 5-10 secs)";
+            status.innerText = "🤖 Downloading AI Models... (First time takes 10-15 secs)";
             await new Promise(r => setTimeout(r, 50)); 
 
             const bgRemover = window.imglyRemoveBackground;
             const blob = await fetch(rawImg.src).then(res => res.blob());
-            const transparentBlob = await bgRemover(blob);
+            
+            // 🚀 MAGIC FIX 1: AI ko exact rasta (path) bataya gaya hai
+            const config = {
+                publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/'
+            };
+            
+            const transparentBlob = await bgRemover(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
             noBgImg.src = transparentUrl;
             
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
                 noBgImg.onload = resolve;
+                noBgImg.onerror = reject;
             });
 
             // STEP 2: Crop to Passport Ratio (3.5 x 4.5) & Add Color
@@ -169,14 +178,23 @@
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // STEP 3: OpenCV Face Clean
-            if (document.getElementById('faceClean').value === 'yes' && typeof cv !== 'undefined') {
-                let src = cv.imread(singleCvs);
-                let dst = new cv.Mat();
-                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
-                cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
-                cv.imshow(singleCvs, dst);
-                src.delete(); dst.delete();
+            // STEP 3: OpenCV Face Clean (with Safe Fallback)
+            if (document.getElementById('faceClean').value === 'yes') {
+                try {
+                    // 🚀 MAGIC FIX 2: Check karega ki OpenCV load hua hai ya nahi
+                    if (typeof cv !== 'undefined' && cv.Mat) {
+                        let src = cv.imread(singleCvs);
+                        let dst = new cv.Mat();
+                        cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+                        cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
+                        cv.imshow(singleCvs, dst);
+                        src.delete(); dst.delete();
+                    } else {
+                        console.warn("OpenCV still loading. Skipping face clean to save the photo.");
+                    }
+                } catch (cvError) {
+                    console.error("Face clean error:", cvError);
+                }
             }
 
             // Stroke Border
@@ -208,17 +226,16 @@
 
             status.style.display = "none";
             btn.innerText = "✓ Generated Successfully!";
-            btn.style.background = "#6c757d"; // Gray out generate button
+            btn.style.background = "#6c757d"; 
             finalCvs.style.display = "block";
             
-            // Show Order Section
             document.getElementById('orderSection').style.display = "block";
             document.getElementById('submitBtn').style.display = "block";
             calculate();
 
         } catch (error) {
-            console.error(error);
-            status.innerText = "❌ Error processing image. Try another photo.";
+            console.error("Full Error Details:", error);
+            status.innerText = "❌ Error: " + error.message; // Ab screen par exact galti likhi aayegi
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
