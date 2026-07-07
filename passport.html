@@ -6,7 +6,7 @@
     <title>Smart Passport Photo Maker</title>
     <!-- OpenCV & Imgly -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
-    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <!-- Supabase & Config -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
@@ -136,12 +136,24 @@
             status.innerText = "🤖 Downloading AI Models... (First time takes 10-15 secs)";
             await new Promise(r => setTimeout(r, 50)); 
 
-            const bgRemover = window.imglyRemoveBackground;
+            // 🚀 MAGIC FIX 1: Smartly finding the function & checking if script loaded
+            let bgRemover = window.imglyRemoveBackground;
+            if (bgRemover && typeof bgRemover.removeBackground === 'function') {
+                bgRemover = bgRemover.removeBackground;
+            } else if (bgRemover && typeof bgRemover.default === 'function') {
+                bgRemover = bgRemover.default;
+            }
+
+            // Agar internet ya ad-blocker ki wajah se AI load nahi hua
+            if (typeof bgRemover !== 'function') {
+                throw new Error("AI Model internet se load nahi ho paya. Kripya apna Internet check karein ya page refresh karein.");
+            }
+
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
-            // 🚀 MAGIC FIX 1: AI ko exact rasta (path) bataya gaya hai
+            // 🚀 MAGIC FIX 2: Model download karne ka naya FAST rasta (JSDelivr)
             const config = {
-                publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/'
+                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/'
             };
             
             const transparentBlob = await bgRemover(blob, config);
@@ -181,7 +193,6 @@
             // STEP 3: OpenCV Face Clean (with Safe Fallback)
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
-                    // 🚀 MAGIC FIX 2: Check karega ki OpenCV load hua hai ya nahi
                     if (typeof cv !== 'undefined' && cv.Mat) {
                         let src = cv.imread(singleCvs);
                         let dst = new cv.Mat();
@@ -190,7 +201,7 @@
                         cv.imshow(singleCvs, dst);
                         src.delete(); dst.delete();
                     } else {
-                        console.warn("OpenCV still loading. Skipping face clean to save the photo.");
+                        console.warn("OpenCV slow load hua. Skipping face clean to save the photo.");
                     }
                 } catch (cvError) {
                     console.error("Face clean error:", cvError);
@@ -235,13 +246,12 @@
 
         } catch (error) {
             console.error("Full Error Details:", error);
-            status.innerText = "❌ Error: " + error.message; // Ab screen par exact galti likhi aayegi
+            status.innerText = "❌ Error: " + error.message; 
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
         }
     }
-
     // 🚀 NEW: Supabase Admin & Payment Logic
     async function submitOrder() {
         const urlParams = new URLSearchParams(window.location.search);
