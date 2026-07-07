@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 THE MASTER UNIVERSAL LINKS (No 404 Errors) -->
-    <script async src="https://docs.opencv.org/4.5.4/opencv.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal/dist/browser/bundle.js" crossorigin="anonymous"></script>
-    
+    <!-- 🚀 POLICY FIX: Global Allowed CDNs (No CORS or MIME Errors) -->
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.6.0/opencv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="config.js"></script>
     
     <style>
@@ -49,7 +49,7 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
-    <!-- 🚀 STRICT AI CHECKER (Upload tab tak band rahega jab tak AI start nahi hota) -->
+    <!-- AI CHECKER -->
     <div id="aiStatusBox" class="ai-status">
         ⏳ Downloading AI Scanner... Please wait!
     </div>
@@ -99,8 +99,9 @@
     let aiReady = false;
     const perSheetRate = 30; 
 
-    // 🚀 STRICT AI CHECKER LOOP (Ye 100% background cut ki guarantee dega)
+    // 🚀 STRICT AI CHECKER LOOP
     let aiCheckInterval = setInterval(() => {
+        // Checking for the AI function loaded from the new stable URL
         if (typeof window.imglyRemoveBackground === 'function') {
             aiReady = true;
             clearInterval(aiCheckInterval);
@@ -153,19 +154,17 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            // STEP 1: AI Background Removal (Guarantee mode)
             status.innerText = "🤖 Removing Background using AI... (Takes 5-15 secs)";
             status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 100)); 
 
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
-            // Universal path for the AI models
+            // 🚀 MATCHING EXACT VERSION FOR INTERNAL ASSETS
             const config = { 
-                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal/dist/' 
+                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
             };
             
-            // 🚀 Here is where the magic happens!
             const transparentBlob = await window.imglyRemoveBackground(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
@@ -173,7 +172,6 @@
             noBgImg.src = transparentUrl;
             await new Promise((resolve) => { noBgImg.onload = resolve; });
 
-            // STEP 2: Cropping and Layout
             status.innerText = "✨ Cleaning Face and Adjusting Colors...";
             await new Promise(r => setTimeout(r, 50));
 
@@ -185,7 +183,6 @@
             singleCvs.height = pHeight;
             let sCtx = singleCvs.getContext('2d');
 
-            // Apply selected background color (White/Blue/Red)
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
@@ -197,7 +194,6 @@
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // STEP 3: OpenCV Face Clean
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -213,12 +209,10 @@
                 }
             }
 
-            // Draw Border
             sCtx.lineWidth = 6; 
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
 
-            // STEP 4: Creating the 4x6 Sheet Layout
             status.innerText = "📄 Arranging 8 Photos on 4x6 Sheet...";
             
             const finalCvs = document.getElementById('finalCanvas');
