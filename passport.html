@@ -104,7 +104,7 @@
 
     // 🚀 CONSTANTLY CHECK IF AI IS DOWNLOADED
     let aiCheckInterval = setInterval(() => {
-        if (typeof window.imglyRemoveBackground === 'function') {
+        if (typeof window.imglyRemoveBackground === 'function' || (window.imglyRemoveBackground && window.imglyRemoveBackground.default)) {
             aiReady = true;
             clearInterval(aiCheckInterval);
             
@@ -161,7 +161,13 @@
             status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 50)); 
 
-            const bgRemover = window.imglyRemoveBackground;
+            let bgRemover = window.imglyRemoveBackground;
+            if (bgRemover && typeof bgRemover.removeBackground === 'function') {
+                bgRemover = bgRemover.removeBackground;
+            } else if (bgRemover && typeof bgRemover.default === 'function') {
+                bgRemover = bgRemover.default;
+            }
+
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
             const config = {
@@ -256,7 +262,7 @@
 
         } catch (error) {
             console.error("Error:", error);
-            status.innerText = "❌ AI Server Blocked. Ensure you are using VS Code Live Server (http://) and not file://";
+            status.innerText = "❌ Error: " + error.message;
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
@@ -302,7 +308,9 @@
             const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
 
             const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
-            const finalPaymentId = isAdmin ? "Direct-Shop-Print";
+            
+            // 🚀 THE MAGIC FIX: Yahan galti se aadhi line likhi gayi thi. Ab ye theek hai!
+            const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
 
             const { data: order, error } = await client.from("orders").insert([{
                 customer_name: name || (isAdmin ? "Shop Admin" : "Guest"),
