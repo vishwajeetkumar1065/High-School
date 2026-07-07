@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 Sirf OpenCV aur Supabase yahan rahenge -->
+    <!-- 🚀 PERFECT COMBINATION CDNs -->
+    <!-- OpenCV from Cloudflare (No CORS Error) -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
+    <!-- Imgly from Official UNPKG (No Syntax Error) -->
+    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
+    <!-- Supabase for DB -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="config.js"></script>
     
     <style>
@@ -46,8 +51,7 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
-    <!-- UI humesha unlocked rahega -->
-    <div class="info-banner">
+    <div class="info-banner" id="bannerText">
         📸 System Ready! Select Customer Photo.
     </div>
 
@@ -119,6 +123,16 @@
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
 
+        // 🚀 Safely check if Official UNPKG script loaded
+        let bgRemover = window.imglyRemoveBackground;
+        
+        if (typeof bgRemover !== 'function') {
+            document.getElementById('bannerText').innerText = "⏳ AI Load ho raha hai... 5 seconds baad dobara Try karein.";
+            document.getElementById('bannerText').style.background = "#fff3e0";
+            document.getElementById('bannerText').style.color = "#e65100";
+            return; // Ruko, aur user ko thoda wait karne do
+        }
+
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
         btn.disabled = true;
@@ -129,25 +143,18 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Downloading AI Engine... (First time takes 10-15 secs)";
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-15 secs)";
             status.style.color = "#1565c0";
-            
-            // 🚀🔥 THE MASTER FIX: Native ES Module Import
-            // Ye seedha library ko module ki tarah layega, variable undefined ki problem khatam!
-            const imgly = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/+esm');
-            const removeBg = imgly.default || imgly.removeBackground;
-
-            if (!removeBg) throw new Error("AI Module import fail ho gaya.");
-
-            status.innerText = "🤖 Removing Background using AI...";
-            await new Promise(r => setTimeout(r, 50));
+            await new Promise(r => setTimeout(r, 100)); 
 
             const blob = await fetch(rawImg.src).then(res => res.blob());
+            
+            // 🚀 Exact Official UNPKG Path
             const config = { 
-                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
+                publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/' 
             };
             
-            const transparentBlob = await removeBg(blob, config);
+            const transparentBlob = await bgRemover(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
@@ -227,7 +234,7 @@
 
         } catch (error) {
             console.error("AI Error Details:", error);
-            status.innerText = "❌ Network slow hai ya AI load nahi ho pa raha. Try Again.";
+            status.innerText = "❌ Network error. Please try again.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
