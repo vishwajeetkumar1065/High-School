@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Passport Photo Maker</title>
+    <!-- OpenCV & Imgly -->
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
+    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
+    <!-- Supabase & Config -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    
+    <style>
+        * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
+        body { background: #eef2f3; padding: 10px; text-align: center; }
+        .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { color: #1976d2; margin-top: 0; }
+        
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        
+        .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; }
+        input[type="file"] { display: none; }
+        
+        .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .controls select { flex: 1; padding: 10px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; }
+        
+        button.process-btn { background: #28a745; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
+        button.process-btn:disabled { background: #aaa; cursor: not-allowed; }
+        
+        .preview-container { margin-top: 20px; border: 2px dashed #1976d2; padding: 10px; background: #fafafa; border-radius: 8px; overflow: auto; display: flex; justify-content: center; }
+        #finalCanvas { max-width: 100%; height: auto; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; }
+        
+        #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
+        #submitBtn:disabled { cursor: not-allowed; opacity: 0.5; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>📸 Passport Photo Maker</h2>
+    <p style="color: #666; font-size: 13px; margin-bottom: 20px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
+
+    <!-- Customer Details Form -->
+    <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
+    <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
+
+    <label class="upload-btn">
+        1. Select Customer Photo
+        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
+    </label>
+
+    <div class="controls">
+        <select id="bgColor">
+            <option value="#FFFFFF">BG: White</option>
+            <option value="#3b82f6">BG: Blue</option>
+            <option value="#ef4444">BG: Red</option>
+        </select>
+        <select id="faceClean">
+            <option value="yes">Face Clean: ON ✨</option>
+            <option value="no">Face Clean: OFF</option>
+        </select>
+    </div>
+
+    <div id="statusBox" class="status-box">Processing...</div>
+
+    <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
+
+    <div class="preview-container">
+        <p id="previewText" style="color: #999; margin: 20px 0;">Preview will appear here</p>
+        <canvas id="finalCanvas" width="1800" height="1200"></canvas>
+    </div>
+
+    <!-- Final Order Submission Details -->
+    <div id="orderSection" style="display: none; margin-top: 15px;">
+        <div class="input-group">
+            <label>Number of Copies (Sheets):</label>
+            <input type="number" id="copies" value="1" min="1" oninput="calculate()">
+        </div>
+        <h3 id="total" style="text-align:center; color: #d32f2f;">Total: ₹30</h3>
+        <button id="submitBtn" onclick="submitOrder()">Submit Order</button>
+    </div>
+</div>
+
+<script>
+    // Supabase Initialization
+    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
+
+    let rawImg = new Image();
+    let imgLoaded = false;
+
+    // Default Rate for 1 Sheet (8 Passport Photos)
+    const perSheetRate = 30; 
+
+    function calculate() {
+        let copies = parseInt(document.getElementById("copies").value) || 1;
+        document.getElementById("total").innerHTML = "Total: ₹" + (copies * perSheetRate);
+    }
+
+    function loadImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            rawImg.src = e.target.result;
+            rawImg.onload = () => {
+                imgLoaded = true;
+                document.getElementById('processBtn').disabled = false;
+                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function generatePassportPhotos() {
+        if (!imgLoaded) return alert("Please upload an image first.");
+
+        const btn = document.getElementById('processBtn');
+        const status = document.getElementById('statusBox');
+        btn.disabled = true;
+        status.style.display = "block";
+        document.getElementById('previewText').style.display = "none";
+        document.getElementById('finalCanvas').style.display = "none";
+        document.getElementById('orderSection').style.display = "none";
+        document.getElementById('submitBtn').style.display = "none";
+
+        try {
+            // STEP 1: AI Background Removal
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-10 secs)";
+            await new Promise(r => setTimeout(r, 50)); 
+
+            const bgRemover = window.imglyRemoveBackground;
+            const blob = await fetch(rawImg.src).then(res => res.blob());
+            const transparentBlob = await bgRemover(blob);
+            const transparentUrl = URL.createObjectURL(transparentBlob);
+            
+            const noBgImg = new Image();
+            noBgImg.src = transparentUrl;
+            
+            await new Promise((resolve) => {
+                noBgImg.onload = resolve;
+            });
+
+            // STEP 2: Crop to Passport Ratio (3.5 x 4.5) & Add Color
+            status.innerText = "✨ Cleaning Face and Adjusting Colors...";
+            await new Promise(r => setTimeout(r, 50));
+
+            const pWidth = 413;
+            const pHeight = 531;
+            
+            let singleCvs = document.createElement('canvas');
+            singleCvs.width = pWidth;
+            singleCvs.height = pHeight;
+            let sCtx = singleCvs.getContext('2d');
+
+            sCtx.fillStyle = document.getElementById('bgColor').value;
+            sCtx.fillRect(0, 0, pWidth, pHeight);
+
+            const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height);
+            const drawW = noBgImg.width * scale;
+            const drawH = noBgImg.height * scale;
+            const dx = (pWidth - drawW) / 2;
+            const dy = (pHeight - drawH) / 10; 
+
+            sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
+
+            // STEP 3: OpenCV Face Clean
+            if (document.getElementById('faceClean').value === 'yes' && typeof cv !== 'undefined') {
+                let src = cv.imread(singleCvs);
+                let dst = new cv.Mat();
+                cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
+                cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
+                cv.imshow(singleCvs, dst);
+                src.delete(); dst.delete();
+            }
+
+            // Stroke Border
+            sCtx.lineWidth = 6; 
+            sCtx.strokeStyle = "black";
+            sCtx.strokeRect(0, 0, pWidth, pHeight);
+
+            // STEP 4: Layout on 4x6 Sheet (1200x1800)
+            status.innerText = "📄 Arranging on 4x6 Sheet...";
+            
+            const finalCvs = document.getElementById('finalCanvas');
+            const fCtx = finalCvs.getContext('2d');
+            
+            fCtx.fillStyle = "#FFFFFF";
+            fCtx.fillRect(0, 0, finalCvs.width, finalCvs.height);
+
+            const cols = 4;
+            const rows = 2;
+            const gapX = (finalCvs.width - (cols * pWidth)) / (cols + 1);
+            const gapY = (finalCvs.height - (rows * pHeight)) / (rows + 1);
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let posX = gapX + c * (pWidth + gapX);
+                    let posY = gapY + r * (pHeight + gapY);
+                    fCtx.drawImage(singleCvs, posX, posY, pWidth, pHeight);
+                }
+            }
+
+            status.style.display = "none";
+            btn.innerText = "✓ Generated Successfully!";
+            btn.style.background = "#6c757d"; // Gray out generate button
+            finalCvs.style.display = "block";
+            
+            // Show Order Section
+            document.getElementById('orderSection').style.display = "block";
+            document.getElementById('submitBtn').style.display = "block";
+            calculate();
+
+        } catch (error) {
+            console.error(error);
+            status.innerText = "❌ Error processing image. Try another photo.";
+            status.style.color = "red";
+            btn.disabled = false;
+            btn.innerText = "Try Again";
+        }
+    }
+
+    // 🚀 NEW: Supabase Admin & Payment Logic
+    async function submitOrder() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === 'vishu') {
+            localStorage.setItem('adminMode', 'true');
+        } else if (urlParams.get('admin') === 'off') {
+            localStorage.removeItem('adminMode'); 
+        }
+        const isAdmin = localStorage.getItem('adminMode') === 'true';
+
+        const lastOrderTime = localStorage.getItem("last_order_time");
+        if (!isAdmin && lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
+            alert("⏳ Security Alert: Please wait 1 minute before placing another order.");
+            return;
+        }
+
+        const rawName = document.getElementById("name").value.trim();
+        const rawMobile = document.getElementById("mobile").value.trim();
+        
+        const name = rawName.replace(/<[^>]*>?/gm, ''); 
+        const mobile = rawMobile.replace(/[^0-9+]/g, ''); 
+
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.innerText = "Uploading to Printer... Please wait";
+        submitBtn.disabled = true;
+
+        try {
+            const finalCvs = document.getElementById('finalCanvas');
+            
+            // Canvas to Blob (JPEG)
+            const processedBlob = await new Promise(resolve => {
+                finalCvs.toBlob(resolve, 'image/jpeg', 0.95);
+            });
+
+            const fileName = `${Date.now()}_passport_4x6.jpg`;
+
+            // Upload to Supabase Storage
+            const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: "image/jpeg", upsert: true });
+            if (uploadError) throw uploadError;
+
+            const copies = document.getElementById("copies").value;
+            const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
+
+            const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
+            const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
+
+            // Insert into Orders Table
+            const { data: order, error } = await client.from("orders").insert([{
+                customer_name: name || (isAdmin ? "Shop Admin" : "Guest"),
+                mobile: mobile || "N/A", 
+                pages: copies, 
+                print_type: "Passport (8 Photos)", 
+                amount: amount,
+                file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, 
+                payment_status: finalPaymentStatus, 
+                payment_id: finalPaymentId,
+                layout_mode: 1 // Defaults to 1 sheet layout
+            }]).select();
+
+            if (error) throw error;
+            
+            localStorage.setItem("last_order_time", Date.now());
+            localStorage.setItem("amount", amount); 
+            localStorage.setItem("mobile", mobile); 
+            localStorage.setItem("current_order_id", order[0].id);
+            
+            if (isAdmin) {
+                alert("👑 Owner Mode: Passport photo sent directly to printer! No payment required.");
+                window.location.reload(); 
+            } else {
+                window.location.href = "payment.html"; 
+            }
+
+        } catch (err) {
+            alert(err.message);
+            submitBtn.innerText = "Submit Order";
+            submitBtn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
