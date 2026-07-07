@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 CACHE-BUSTER LINKS (Ye browser ko hamesha fresh file download karne pe majboor karenge) -->
+    <!-- 🚀 Sirf OpenCV aur Database ka link yahan rahega. AI hum dynamically layenge! -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
-    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/browser/bundle.js?v=100"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script src="config.js?v=100"></script>
+    <script src="config.js?v=999"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -48,7 +46,8 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
-    <div class="info-banner" id="bannerText">
+    <!-- 🚀 Humesha Ready! -->
+    <div class="info-banner">
         📸 System Ready! Select Customer Photo.
     </div>
 
@@ -74,6 +73,7 @@
 
     <div id="statusBox" class="status-box">Processing...</div>
 
+    <!-- 🚀 Button by default disabled hai, photo upload hote hi on hoga -->
     <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
 
     <div class="preview-container">
@@ -120,16 +120,9 @@
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
 
-        let bgRemover = window.imglyRemoveBackground;
-        
-        // Agar AI file load hone mein 1 second ka time le rahi hai
-        if (typeof bgRemover !== 'function') {
-            alert("⏳ AI Server Connect ho raha hai. Please 5 seconds wait karein aur dobara click karein.");
-            return;
-        }
-
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
+        
         btn.disabled = true;
         status.style.display = "block";
         document.getElementById('previewText').style.display = "none";
@@ -137,25 +130,44 @@
         document.getElementById('orderSection').style.display = "none";
         document.getElementById('submitBtn').style.display = "none";
 
+        let finalImageSource = rawImg; // Agar AI fail hua toh by default original photo use hogi!
+
         try {
-            status.innerText = "🤖 Removing Background using AI... (First time takes 10-15 secs)";
+            status.innerText = "🤖 Downloading AI Engine... (Please wait 10-15s)";
             status.style.color = "#1565c0";
-            await new Promise(r => setTimeout(r, 100)); 
 
-            const blob = await fetch(rawImg.src).then(res => res.blob());
-            
-            const config = { 
-                publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/' 
-            };
-            
-            const transparentBlob = await bgRemover(blob, config);
-            const transparentUrl = URL.createObjectURL(transparentBlob);
-            
-            const noBgImg = new Image();
-            noBgImg.src = transparentUrl;
-            await new Promise((resolve) => { noBgImg.onload = resolve; });
+            // 🚀 DYNAMIC IMPORT (esm.sh) - Duniya ka sabse powerful module loader!
+            const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
+            const removeBg = imgly.default || imgly.removeBackground;
 
-            status.innerText = "✨ Cleaning Face and Adjusting Colors...";
+            if (removeBg) {
+                status.innerText = "🤖 Removing Background using AI...";
+                const blob = await fetch(rawImg.src).then(res => res.blob());
+                
+                const config = { 
+                    publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/' 
+                };
+                
+                const transparentBlob = await removeBg(blob, config);
+                const transparentUrl = URL.createObjectURL(transparentBlob);
+                
+                const noBgImg = new Image();
+                noBgImg.src = transparentUrl;
+                await new Promise((resolve) => { noBgImg.onload = resolve; });
+                
+                finalImageSource = noBgImg; // Magic successful!
+            }
+        } catch (aiError) {
+            // 🛑 AGAR AI FAIL HUA, TOH CODE AAGE BADH JAYEGA (ATAKEGA NAHI)
+            console.warn("AI failed or blocked. Using Original Photo.", aiError);
+            status.innerText = "⚠️ AI Load nahi hua. Original photo use kar rahe hain...";
+            status.style.color = "#e65100";
+            await new Promise(r => setTimeout(r, 1500)); // Thoda wait taaki user message padh le
+        }
+
+        try {
+            status.innerText = "✨ Adjusting Colors and Formatting...";
+            status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 50));
 
             const pWidth = 413;
@@ -169,14 +181,15 @@
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
-            const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height);
-            const drawW = noBgImg.width * scale;
-            const drawH = noBgImg.height * scale;
+            const scale = Math.max(pWidth / finalImageSource.width, pHeight / finalImageSource.height);
+            const drawW = finalImageSource.width * scale;
+            const drawH = finalImageSource.height * scale;
             const dx = (pWidth - drawW) / 2;
             const dy = (pHeight - drawH) / 10; 
 
-            sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
+            sCtx.drawImage(finalImageSource, dx, dy, drawW, drawH);
 
+            // OpenCV Face Clean
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -218,7 +231,7 @@
             }
 
             status.style.display = "none";
-            btn.innerText = "✓ Background Cleaned & Generated!";
+            btn.innerText = "✓ Generated Successfully!";
             btn.style.background = "#6c757d"; 
             finalCvs.style.display = "block";
             
@@ -227,8 +240,8 @@
             calculate();
 
         } catch (error) {
-            console.error("AI Error Details:", error);
-            status.innerText = "❌ Network error. Please Try Again.";
+            console.error("Layout Error:", error);
+            status.innerText = "❌ Canvas Error. Kripya page refresh karein.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
