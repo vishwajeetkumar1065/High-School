@@ -5,14 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 PERFECT COMBINATION CDNs -->
-    <!-- OpenCV from Cloudflare (No CORS Error) -->
+    <!-- 🚀 ULTRA STABLE VERSIONS (No 1.4.3 Glitches) -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
-    <!-- Imgly from Official UNPKG (No Syntax Error) -->
-    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
-    <!-- Supabase for DB -->
+    <script src="https://unpkg.com/@imgly/background-removal@1.3.0/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <script src="config.js"></script>
     
     <style>
@@ -51,6 +47,7 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
+    <!-- UI Humesha Ready -->
     <div class="info-banner" id="bannerText">
         📸 System Ready! Select Customer Photo.
     </div>
@@ -123,18 +120,22 @@
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
 
-        // 🚀 Safely check if Official UNPKG script loaded
-        let bgRemover = window.imglyRemoveBackground;
-        
-        if (typeof bgRemover !== 'function') {
-            document.getElementById('bannerText').innerText = "⏳ AI Load ho raha hai... 5 seconds baad dobara Try karein.";
-            document.getElementById('bannerText').style.background = "#fff3e0";
-            document.getElementById('bannerText').style.color = "#e65100";
-            return; // Ruko, aur user ko thoda wait karne do
-        }
-
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
+        
+        let tryAI = true;
+        let finalImageSource = rawImg; // Agar AI fail hua toh original photo use hogi
+
+        // 🚀 EMERGENCY BYPASS: Agar script block ho gayi hai
+        if (typeof window.imglyRemoveBackground !== 'function') {
+            let skipConfirm = confirm("⚠️ Aapka internet AI file ko block kar raha hai.\n\nKya aap bina background clean kiye 'Original Photo' se Passport Photo banana chahti hain?");
+            if (skipConfirm) {
+                tryAI = false;
+            } else {
+                return; // User chahe toh refresh karke dobara try kar sakti hai
+            }
+        }
+
         btn.disabled = true;
         status.style.display = "block";
         document.getElementById('previewText').style.display = "none";
@@ -143,25 +144,41 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Removing Background using AI... (Takes 5-15 secs)";
-            status.style.color = "#1565c0";
-            await new Promise(r => setTimeout(r, 100)); 
+            // STEP 1: AI Background Removal
+            if (tryAI) {
+                try {
+                    status.innerText = "🤖 Downloading AI Models... (First time takes 10-20 secs)";
+                    status.style.color = "#1565c0";
+                    await new Promise(r => setTimeout(r, 100)); 
 
-            const blob = await fetch(rawImg.src).then(res => res.blob());
-            
-            // 🚀 Exact Official UNPKG Path
-            const config = { 
-                publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/' 
-            };
-            
-            const transparentBlob = await bgRemover(blob, config);
-            const transparentUrl = URL.createObjectURL(transparentBlob);
-            
-            const noBgImg = new Image();
-            noBgImg.src = transparentUrl;
-            await new Promise((resolve) => { noBgImg.onload = resolve; });
+                    const blob = await fetch(rawImg.src).then(res => res.blob());
+                    const config = { 
+                        publicPath: 'https://unpkg.com/@imgly/background-removal@1.3.0/dist/' 
+                    };
+                    
+                    const transparentBlob = await window.imglyRemoveBackground(blob, config);
+                    const transparentUrl = URL.createObjectURL(transparentBlob);
+                    
+                    const noBgImg = new Image();
+                    noBgImg.src = transparentUrl;
+                    await new Promise((resolve) => { noBgImg.onload = resolve; });
+                    
+                    finalImageSource = noBgImg; // Success! AI ne kaam kar diya
+                } catch (aiError) {
+                    console.error("AI Error:", aiError);
+                    let fallback = confirm("❌ Internet slow hone ki wajah se Background saaf nahi ho paya.\n\nKya Original photo print ke liye set karein?");
+                    if (!fallback) {
+                        btn.disabled = false;
+                        status.style.display = "none";
+                        btn.innerText = "Try Again";
+                        return;
+                    }
+                    // Agar 'Yes' kiya, toh finalImageSource = rawImg hi rahega
+                }
+            }
 
-            status.innerText = "✨ Cleaning Face and Adjusting Colors...";
+            // STEP 2: Cleaning Face and Colors
+            status.innerText = "✨ Formatting to Passport Size...";
             await new Promise(r => setTimeout(r, 50));
 
             const pWidth = 413;
@@ -175,14 +192,15 @@
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
-            const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height);
-            const drawW = noBgImg.width * scale;
-            const drawH = noBgImg.height * scale;
+            const scale = Math.max(pWidth / finalImageSource.width, pHeight / finalImageSource.height);
+            const drawW = finalImageSource.width * scale;
+            const drawH = finalImageSource.height * scale;
             const dx = (pWidth - drawW) / 2;
             const dy = (pHeight - drawH) / 10; 
 
-            sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
+            sCtx.drawImage(finalImageSource, dx, dy, drawW, drawH);
 
+            // OpenCV Face Clean
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -202,6 +220,7 @@
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
 
+            // STEP 3: Arranging 8 Photos on 4x6 Sheet
             status.innerText = "📄 Arranging 8 Photos on 4x6 Sheet...";
             
             const finalCvs = document.getElementById('finalCanvas');
@@ -224,7 +243,7 @@
             }
 
             status.style.display = "none";
-            btn.innerText = "✓ Background Cleaned & Generated!";
+            btn.innerText = "✓ Generated Successfully!";
             btn.style.background = "#6c757d"; 
             finalCvs.style.display = "block";
             
@@ -233,8 +252,8 @@
             calculate();
 
         } catch (error) {
-            console.error("AI Error Details:", error);
-            status.innerText = "❌ Network error. Please try again.";
+            console.error("System Error:", error);
+            status.innerText = "❌ System Error. Kripya page refresh karein.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
