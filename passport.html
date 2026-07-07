@@ -17,14 +17,11 @@
         .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { color: #1976d2; margin-top: 0; }
         
-        .ai-status { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 8px; border-radius: 4px; background: #fff3e0; color: #e65100; border: 1px dashed #ffb74d; }
-        
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         
         .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; transition: opacity 0.3s; }
-        .upload-btn.disabled { opacity: 0.5; pointer-events: none; }
         input[type="file"] { display: none; }
         
         .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
@@ -46,20 +43,15 @@
 
 <div class="card">
     <h2>📸 Passport Photo Maker</h2>
-    <p style="color: #666; font-size: 13px; margin-bottom: 10px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
-
-    <!-- 🚀 AI LIVE CHECKER -->
-    <div id="aiStatusBox" class="ai-status">
-        ⏳ Loading AI Models... Please wait
-    </div>
+    <p style="color: #666; font-size: 13px; margin-bottom: 20px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
     <!-- Customer Details Form -->
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
-    <label id="uploadLabel" class="upload-btn disabled">
+    <label id="uploadLabel" class="upload-btn">
         1. Select Customer Photo
-        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)" disabled>
+        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
     </label>
 
     <div class="controls">
@@ -95,29 +87,9 @@
 </div>
 
 <script>
-    const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
-
     let rawImg = new Image();
     let imgLoaded = false;
-    let aiReady = false;
     const perSheetRate = 30; 
-
-    // 🚀 CONSTANTLY CHECK IF AI IS DOWNLOADED
-    let aiCheckInterval = setInterval(() => {
-        if (typeof window.imglyRemoveBackground === 'function' || (window.imglyRemoveBackground && window.imglyRemoveBackground.default)) {
-            aiReady = true;
-            clearInterval(aiCheckInterval);
-            
-            const aiStatusBox = document.getElementById("aiStatusBox");
-            aiStatusBox.innerHTML = "✅ AI Ready! You can upload now.";
-            aiStatusBox.style.background = "#e8f5e9";
-            aiStatusBox.style.color = "#2e7d32";
-            aiStatusBox.style.border = "1px solid #4caf50";
-            
-            document.getElementById("uploadLabel").classList.remove("disabled");
-            document.getElementById("uploadImage").disabled = false;
-        }
-    }, 1000);
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -133,10 +105,8 @@
             rawImg.src = e.target.result;
             rawImg.onload = () => {
                 imgLoaded = true;
-                if (aiReady) {
-                    document.getElementById('processBtn').disabled = false;
-                    document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
-                }
+                document.getElementById('processBtn').disabled = false;
+                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
             };
         };
         reader.readAsDataURL(file);
@@ -144,7 +114,19 @@
 
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
-        if (!aiReady) return alert("AI is still loading. Please wait a moment.");
+
+        // 🚀 Safely Check if AI is loaded (No Crashing)
+        let bgRemover = window.imglyRemoveBackground;
+        if (bgRemover && typeof bgRemover.removeBackground === 'function') {
+            bgRemover = bgRemover.removeBackground;
+        } else if (bgRemover && typeof bgRemover.default === 'function') {
+            bgRemover = bgRemover.default;
+        }
+
+        if (typeof bgRemover !== 'function') {
+            alert("⏳ AI Model internet se download ho raha hai. Kripya 5 seconds wait karein aur wapas 'Generate' par click karein.");
+            return;
+        }
 
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
@@ -160,13 +142,6 @@
             status.innerText = "🤖 Removing Background using AI... (Takes 5-10 secs)";
             status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 50)); 
-
-            let bgRemover = window.imglyRemoveBackground;
-            if (bgRemover && typeof bgRemover.removeBackground === 'function') {
-                bgRemover = bgRemover.removeBackground;
-            } else if (bgRemover && typeof bgRemover.default === 'function') {
-                bgRemover = bgRemover.default;
-            }
 
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
@@ -217,8 +192,6 @@
                         cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
                         cv.imshow(singleCvs, dst);
                         src.delete(); dst.delete();
-                    } else {
-                        console.warn("OpenCV still loading. Skipping face clean.");
                     }
                 } catch (cvError) {
                     console.error("Face clean error:", cvError);
@@ -262,14 +235,17 @@
 
         } catch (error) {
             console.error("Error:", error);
-            status.innerText = "❌ Error: " + error.message;
+            status.innerText = "❌ Error processing image. Make sure you use Live Server.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
         }
     }
 
+    // 🚀 CONNECT TO DATABASE ONLY ON SUBMIT (Prevents freezing on load)
     async function submitOrder() {
+        const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
+
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('admin') === 'vishu') {
             localStorage.setItem('adminMode', 'true');
@@ -308,8 +284,6 @@
             const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
 
             const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
-            
-            // 🚀 THE MAGIC FIX: Yahan galti se aadhi line likhi gayi thi. Ab ye theek hai!
             const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
 
             const { data: order, error } = await client.from("orders").insert([{
