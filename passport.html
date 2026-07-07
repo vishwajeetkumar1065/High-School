@@ -5,16 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 CDNs for OpenCV & Supabase -->
-    <script async src="https://docs.opencv.org/4.5.4/opencv.js" crossorigin="anonymous"></script>
+    <!-- 🚀 FIX 1: OpenCV from Cloudflare CDN (No CORS Error) -->
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
+    
+    <!-- 🚀 FIX 2: Imgly Standard Bundle from jsDelivr (No 404 Error) -->
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    
-    <!-- 🚀 BULLETPROOF AI IMPORTER (Naya Tareeka) -->
-    <script type="module">
-        import imglyRemoveBackground from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.mjs";
-        window.aiBgRemover = imglyRemoveBackground;
-    </script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -102,6 +100,7 @@
 <script>
     let rawImg = new Image();
     let imgLoaded = false;
+    let aiReady = false;
     const perSheetRate = 30; 
 
     function calculate() {
@@ -109,9 +108,10 @@
         document.getElementById("total").innerHTML = "Total: ₹" + (copies * perSheetRate);
     }
 
-    // 🚀 Smart AI Loading Check (Ab naya window.aiBgRemover use hoga)
+    // 🚀 Safe checking for the standard script object
     let aiCheckInterval = setInterval(() => {
-        if (typeof window.aiBgRemover === 'function') {
+        if (typeof window.imglyRemoveBackground !== 'undefined') {
+            aiReady = true;
             clearInterval(aiCheckInterval);
             
             const aiStatusBox = document.getElementById("aiStatusBox");
@@ -134,8 +134,10 @@
             rawImg.src = e.target.result;
             rawImg.onload = () => {
                 imgLoaded = true;
-                document.getElementById('processBtn').disabled = false;
-                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                if (aiReady) {
+                    document.getElementById('processBtn').disabled = false;
+                    document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                }
             };
         };
         reader.readAsDataURL(file);
@@ -144,8 +146,12 @@
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
 
-        // Checking the new direct variable
-        let bgRemover = window.aiBgRemover;
+        let bgRemover = window.imglyRemoveBackground;
+        if (bgRemover && typeof bgRemover.removeBackground === 'function') {
+            bgRemover = bgRemover.removeBackground;
+        } else if (bgRemover && typeof bgRemover.default === 'function') {
+            bgRemover = bgRemover.default;
+        }
 
         if (typeof bgRemover !== 'function') {
             alert("⏳ AI Model internet se download ho raha hai. Kripya thoda wait karein.");
@@ -162,12 +168,13 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Removing Background using AI... (First time takes 10 secs)";
+            status.innerText = "🤖 Removing Background using AI... (First time takes 10-15 secs)";
             status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 50)); 
 
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
+            // Fixed Config Path for jsdelivr
             const config = {
                 publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/'
             };
