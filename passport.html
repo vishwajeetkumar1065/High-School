@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
-    <!-- OpenCV & Imgly -->
+    
+    <!-- 🚀 CDNs for AI, OpenCV & Supabase -->
     <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
-   <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
-    <!-- Supabase & Config -->
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     
@@ -17,11 +17,14 @@
         .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { color: #1976d2; margin-top: 0; }
         
+        .ai-status { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 8px; border-radius: 4px; background: #fff3e0; color: #e65100; border: 1px dashed #ffb74d; }
+        
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         
-        .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; }
+        .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; transition: opacity 0.3s; }
+        .upload-btn.disabled { opacity: 0.5; pointer-events: none; }
         input[type="file"] { display: none; }
         
         .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
@@ -43,15 +46,20 @@
 
 <div class="card">
     <h2>📸 Passport Photo Maker</h2>
-    <p style="color: #666; font-size: 13px; margin-bottom: 20px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
+    <p style="color: #666; font-size: 13px; margin-bottom: 10px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
+
+    <!-- 🚀 AI LIVE CHECKER -->
+    <div id="aiStatusBox" class="ai-status">
+        ⏳ Loading AI Models... Please wait
+    </div>
 
     <!-- Customer Details Form -->
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
-    <label class="upload-btn">
+    <label id="uploadLabel" class="upload-btn disabled">
         1. Select Customer Photo
-        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
+        <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)" disabled>
     </label>
 
     <div class="controls">
@@ -87,14 +95,29 @@
 </div>
 
 <script>
-    // Supabase Initialization
     const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
     let rawImg = new Image();
     let imgLoaded = false;
-
-    // Default Rate for 1 Sheet (8 Passport Photos)
+    let aiReady = false;
     const perSheetRate = 30; 
+
+    // 🚀 CONSTANTLY CHECK IF AI IS DOWNLOADED
+    let aiCheckInterval = setInterval(() => {
+        if (typeof window.imglyRemoveBackground === 'function') {
+            aiReady = true;
+            clearInterval(aiCheckInterval);
+            
+            const aiStatusBox = document.getElementById("aiStatusBox");
+            aiStatusBox.innerHTML = "✅ AI Ready! You can upload now.";
+            aiStatusBox.style.background = "#e8f5e9";
+            aiStatusBox.style.color = "#2e7d32";
+            aiStatusBox.style.border = "1px solid #4caf50";
+            
+            document.getElementById("uploadLabel").classList.remove("disabled");
+            document.getElementById("uploadImage").disabled = false;
+        }
+    }, 1000);
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -110,17 +133,18 @@
             rawImg.src = e.target.result;
             rawImg.onload = () => {
                 imgLoaded = true;
-                document.getElementById('processBtn').disabled = false;
-                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                if (aiReady) {
+                    document.getElementById('processBtn').disabled = false;
+                    document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+                }
             };
         };
         reader.readAsDataURL(file);
     }
 
-    
-    
     async function generatePassportPhotos() {
         if (!imgLoaded) return alert("Please upload an image first.");
+        if (!aiReady) return alert("AI is still loading. Please wait a moment.");
 
         const btn = document.getElementById('processBtn');
         const status = document.getElementById('statusBox');
@@ -133,25 +157,13 @@
 
         try {
             // STEP 1: AI Background Removal
-            status.innerText = "🤖 Downloading AI Models... (First time takes 10-15 secs)";
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-10 secs)";
+            status.style.color = "#1565c0";
             await new Promise(r => setTimeout(r, 50)); 
 
-            // 🚀 MAGIC FIX 1: Smartly finding the function & checking if script loaded
-            let bgRemover = window.imglyRemoveBackground;
-            if (bgRemover && typeof bgRemover.removeBackground === 'function') {
-                bgRemover = bgRemover.removeBackground;
-            } else if (bgRemover && typeof bgRemover.default === 'function') {
-                bgRemover = bgRemover.default;
-            }
-
-            // Agar internet ya ad-blocker ki wajah se AI load nahi hua
-            if (typeof bgRemover !== 'function') {
-                throw new Error("AI Model internet se load nahi ho paya. Kripya apna Internet check karein ya page refresh karein.");
-            }
-
+            const bgRemover = window.imglyRemoveBackground;
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
-            // 🚀 MAGIC FIX 2: Model download karne ka naya FAST rasta (JSDelivr)
             const config = {
                 publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/'
             };
@@ -162,12 +174,11 @@
             const noBgImg = new Image();
             noBgImg.src = transparentUrl;
             
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
                 noBgImg.onload = resolve;
-                noBgImg.onerror = reject;
             });
 
-            // STEP 2: Crop to Passport Ratio (3.5 x 4.5) & Add Color
+            // STEP 2: Crop to Passport Ratio
             status.innerText = "✨ Cleaning Face and Adjusting Colors...";
             await new Promise(r => setTimeout(r, 50));
 
@@ -190,7 +201,7 @@
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // STEP 3: OpenCV Face Clean (with Safe Fallback)
+            // STEP 3: OpenCV Face Clean
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -201,19 +212,18 @@
                         cv.imshow(singleCvs, dst);
                         src.delete(); dst.delete();
                     } else {
-                        console.warn("OpenCV slow load hua. Skipping face clean to save the photo.");
+                        console.warn("OpenCV still loading. Skipping face clean.");
                     }
                 } catch (cvError) {
                     console.error("Face clean error:", cvError);
                 }
             }
 
-            // Stroke Border
             sCtx.lineWidth = 6; 
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
 
-            // STEP 4: Layout on 4x6 Sheet (1200x1800)
+            // STEP 4: Layout on 4x6 Sheet
             status.innerText = "📄 Arranging on 4x6 Sheet...";
             
             const finalCvs = document.getElementById('finalCanvas');
@@ -245,14 +255,14 @@
             calculate();
 
         } catch (error) {
-            console.error("Full Error Details:", error);
-            status.innerText = "❌ Error: " + error.message; 
+            console.error("Error:", error);
+            status.innerText = "❌ AI Server Blocked. Ensure you are using VS Code Live Server (http://) and not file://";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
         }
     }
-    // 🚀 NEW: Supabase Admin & Payment Logic
+
     async function submitOrder() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('admin') === 'vishu') {
@@ -270,7 +280,6 @@
 
         const rawName = document.getElementById("name").value.trim();
         const rawMobile = document.getElementById("mobile").value.trim();
-        
         const name = rawName.replace(/<[^>]*>?/gm, ''); 
         const mobile = rawMobile.replace(/[^0-9+]/g, ''); 
 
@@ -280,15 +289,12 @@
 
         try {
             const finalCvs = document.getElementById('finalCanvas');
-            
-            // Canvas to Blob (JPEG)
             const processedBlob = await new Promise(resolve => {
                 finalCvs.toBlob(resolve, 'image/jpeg', 0.95);
             });
 
             const fileName = `${Date.now()}_passport_4x6.jpg`;
 
-            // Upload to Supabase Storage
             const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: "image/jpeg", upsert: true });
             if (uploadError) throw uploadError;
 
@@ -296,9 +302,8 @@
             const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
 
             const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
-            const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
+            const finalPaymentId = isAdmin ? "Direct-Shop-Print";
 
-            // Insert into Orders Table
             const { data: order, error } = await client.from("orders").insert([{
                 customer_name: name || (isAdmin ? "Shop Admin" : "Guest"),
                 mobile: mobile || "N/A", 
@@ -308,7 +313,7 @@
                 file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, 
                 payment_status: finalPaymentStatus, 
                 payment_id: finalPaymentId,
-                layout_mode: 1 // Defaults to 1 sheet layout
+                layout_mode: 1 
             }]).select();
 
             if (error) throw error;
