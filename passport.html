@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 Stable Global CDNs -->
+    <!-- 🚀 Sirf OpenCV aur Supabase yahan rahenge -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     
@@ -47,7 +46,7 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
 
-    <!-- 🚀 Humesha Ready State (No Lock) -->
+    <!-- UI humesha unlocked rahega -->
     <div class="info-banner">
         📸 System Ready! Select Customer Photo.
     </div>
@@ -55,8 +54,7 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
-    <!-- 🚀 Button Humesha Active rahega -->
-    <label id="uploadLabel" class="upload-btn">
+    <label class="upload-btn">
         1. Select Customer Photo
         <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
     </label>
@@ -131,25 +129,17 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Initializing Background Extractor...";
+            status.innerText = "🤖 Downloading AI Engine... (First time takes 10-15 secs)";
             status.style.color = "#1565c0";
-            await new Promise(r => setTimeout(r, 100)); 
+            
+            // 🚀🔥 THE MASTER FIX: Native ES Module Import
+            // Ye seedha library ko module ki tarah layega, variable undefined ki problem khatam!
+            const imgly = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/+esm');
+            const removeBg = imgly.default || imgly.removeBackground;
 
-            // 🚀 SMART FUNCTION EXTRACTOR (GitHub Pages ke glitch ko bypass karne ke liye)
-            let bgRemover = null;
-            if (typeof window.imglyRemoveBackground === 'function') {
-                bgRemover = window.imglyRemoveBackground;
-            } else if (window.imglyRemoveBackground && typeof window.imglyRemoveBackground.removeBackground === 'function') {
-                bgRemover = window.imglyRemoveBackground.removeBackground;
-            } else if (window.imglyRemoveBackground && typeof window.imglyRemoveBackground.default === 'function') {
-                bgRemover = window.imglyRemoveBackground.default;
-            }
+            if (!removeBg) throw new Error("AI Module import fail ho gaya.");
 
-            if (!bgRemover) {
-                throw new Error("AI engine files loaded completely nahi ho paayi hain. Kripya page reload (Ctrl+Shift+R) karein.");
-            }
-
-            status.innerText = "🤖 Removing Background using AI... (Takes 5-15 secs)";
+            status.innerText = "🤖 Removing Background using AI...";
             await new Promise(r => setTimeout(r, 50));
 
             const blob = await fetch(rawImg.src).then(res => res.blob());
@@ -157,7 +147,7 @@
                 publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
             };
             
-            const transparentBlob = await bgRemover(blob, config);
+            const transparentBlob = await removeBg(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
@@ -237,7 +227,7 @@
 
         } catch (error) {
             console.error("AI Error Details:", error);
-            status.innerText = "❌ Error: " + error.message;
+            status.innerText = "❌ Network slow hai ya AI load nahi ho pa raha. Try Again.";
             status.style.color = "red";
             btn.disabled = false;
             btn.innerText = "Try Again";
