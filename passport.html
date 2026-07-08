@@ -7,7 +7,7 @@
     
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=zoom_fix"></script>
+    <script src="config.js?v=hd_fix"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -26,7 +26,6 @@
         
         .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
         
-        /* 🚀 Zoom control ke liye design update kiya gaya hai */
         .controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
         .controls select { flex: 1; min-width: 30%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
         
@@ -44,7 +43,7 @@
 <body>
 
 <div class="card">
-    <h2>📸 Passport Photo Maker</h2>
+    <h2>📸 HD Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
     
     <div class="info-banner">
@@ -59,7 +58,6 @@
         <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
     </label>
 
-    <!-- 🚀 NAYA ZOOM OPTION ADD KIYA GAYA HAI -->
     <div class="controls">
         <select id="bgColor">
             <option value="#FFFFFF">BG: White</option>
@@ -105,6 +103,15 @@
     let imgLoaded = false;
     const perSheetRate = 30; 
 
+    function showError(step, errorMsg) {
+        const box = document.getElementById("debugBox");
+        box.style.display = "block";
+        box.innerHTML = `⚠️ <b>ERROR AT:</b> ${step}<br><br><b>DETAILS:</b><br>${errorMsg}`;
+        document.getElementById('statusBox').style.display = "none";
+        document.getElementById('processBtn').disabled = false;
+        document.getElementById('processBtn').innerText = "Try Again";
+    }
+
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
         document.getElementById("total").innerHTML = "Total: ₹" + (copies * perSheetRate);
@@ -134,25 +141,28 @@
         
         btn.disabled = true;
         status.style.display = "block";
+        document.getElementById('debugBox').style.display = "none";
         document.getElementById('previewText').style.display = "none";
         document.getElementById('finalCanvas').style.display = "none";
         document.getElementById('orderSection').style.display = "none";
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Downloading AI Engine... (Sirf Pehli Baar)";
+            status.innerText = "🤖 Waking up HD AI Engine...";
             await new Promise(r => setTimeout(r, 100)); 
 
             let removeBg;
             const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
             removeBg = imgly.default || imgly.removeBackground;
 
-            status.innerText = "📥 Removing Background... (Takes 5-10s)";
+            // HD MODEL DOWNLOAD MESSAGE
+            status.innerText = "📥 Downloading HD Model... (Kripya thoda wait karein. Quality saaf ho rahi hai!)";
             
             const blob = await fetch(rawImg.src).then(res => res.blob());
+            
+            // 🚀 MAGIC FIX: 'small' model hata diya gaya hai. Ab default (Medium HD) model load hoga.
             const config = { 
-                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.4.3/dist/',
-                model: 'small' 
+                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.4.3/dist/'
             };
             
             const transparentBlob = await removeBg(blob, config);
@@ -162,7 +172,7 @@
             noBgImg.src = transparentUrl;
             await new Promise((resolve) => { noBgImg.onload = resolve; });
             
-            status.innerText = "✨ Cropping to Passport Size...";
+            status.innerText = "✨ Enhancing Photo Quality & Formatting...";
             await new Promise(r => setTimeout(r, 50));
 
             const pWidth = 413;
@@ -173,35 +183,31 @@
             singleCvs.height = pHeight;
             let sCtx = singleCvs.getContext('2d');
 
-            // Set Background Color
+            // 🚀 MAGIC FIX: Ultra-HD Image Smoothing
+            sCtx.imageSmoothingEnabled = true;
+            sCtx.imageSmoothingQuality = 'high';
+
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
-            // 🚀 SMART ZOOM & CROP LOGIC
             const zoomValue = parseFloat(document.getElementById('zoomLevel').value);
-            
-            // Image ko zoom ke hisaab se bada karo
             const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height) * zoomValue;
             const drawW = noBgImg.width * scale;
             const drawH = noBgImg.height * scale;
-            
-            // Image ko horizontally center karo
             const dx = (pWidth - drawW) / 2;
-            
-            // 🚀 Image ko vertically set karo taaki Sar (Head) na kate aur hath chhup jayein
-            // Hum top se 12% space chhodenge (taaki thodi jagah rahe), baaki neeche (hath) cut jayega
             const dy = (pHeight - drawH) * 0.12; 
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // OpenCV Face Clean
+            // 🚀 MAGIC FIX: Natural Face Clean (Pehle wala bahut strong tha, ab soft kar diya)
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
                         let src = cv.imread(singleCvs);
                         let dst = new cv.Mat();
                         cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
-                        cv.bilateralFilter(src, dst, 9, 75, 75, cv.BORDER_DEFAULT);
+                        // Filter ko 9,75,75 se hata kar 5,40,40 kiya gaya hai taaki photo fake na lage
+                        cv.bilateralFilter(src, dst, 5, 40, 40, cv.BORDER_DEFAULT);
                         cv.imshow(singleCvs, dst);
                         src.delete(); dst.delete();
                     }
@@ -210,7 +216,6 @@
                 }
             }
 
-            // Draw Border
             sCtx.lineWidth = 6; 
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
@@ -219,6 +224,10 @@
             
             const finalCvs = document.getElementById('finalCanvas');
             const fCtx = finalCvs.getContext('2d');
+            
+            // Final canvas par bhi HD smoothing
+            fCtx.imageSmoothingEnabled = true;
+            fCtx.imageSmoothingQuality = 'high';
             
             fCtx.fillStyle = "#FFFFFF";
             fCtx.fillRect(0, 0, finalCvs.width, finalCvs.height);
@@ -246,9 +255,7 @@
             calculate();
 
         } catch (error) {
-            alert("Error processing image. Please try again.");
-            btn.disabled = false;
-            btn.innerText = "Try Again";
+            showError("AI Processing", error.message || error);
         }
     }
 
@@ -281,7 +288,7 @@
         try {
             const finalCvs = document.getElementById('finalCanvas');
             const processedBlob = await new Promise(resolve => {
-                finalCvs.toBlob(resolve, 'image/jpeg', 0.95);
+                finalCvs.toBlob(resolve, 'image/jpeg', 1.0); // 🚀 Highest Image Quality (1.0)
             });
 
             const fileName = `${Date.now()}_passport_4x6.jpg`;
@@ -322,7 +329,7 @@
             }
 
         } catch (err) {
-            alert(err.message);
+            showError("Order Submission", err.message);
             submitBtn.innerText = "Submit Order";
             submitBtn.disabled = false;
         }
