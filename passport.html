@@ -5,15 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
+    <!-- 🚀 CLEAN JSDELIVR SCRIPT (Blocked nahi hoga) -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=master_fix"></script>
+    <script src="config.js?v=epic_fix"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
         body { background: #eef2f3; padding: 10px; text-align: center; }
         .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { color: #1976d2; margin-top: 0; }
+        
+        .info-banner { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 10px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
         
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
@@ -45,6 +49,10 @@
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
     
+    <div class="info-banner">
+        📸 System Ready! Select Customer Photo.
+    </div>
+
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
@@ -135,32 +143,29 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Downloading AI Engine... (Please wait 10s)";
+            status.innerText = "🤖 Waking up AI Engine...";
             await new Promise(r => setTimeout(r, 100)); 
 
-            // 🚀 THE MASTER FIX: 
-            // 1. Script fetching from ESM.SH (No Syntax/Lodash Bug)
-            let removeBg;
-            try {
-                const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
-                removeBg = imgly.default || imgly.removeBackground;
-            } catch (err) {
-                throw new Error("Module Load Fail (ESM.sh): " + err.message);
+            let bgRemover = window.imglyRemoveBackground;
+            if (typeof bgRemover !== 'function') {
+                if (bgRemover && typeof bgRemover.default === 'function') {
+                    bgRemover = bgRemover.default;
+                } else if (bgRemover && typeof bgRemover.removeBackground === 'function') {
+                    bgRemover = bgRemover.removeBackground;
+                } else {
+                    throw new Error("AI script load nahi ho paayi.");
+                }
             }
 
-            if (typeof removeBg !== 'function') {
-                throw new Error("Module loaded but removeBackground function missing.");
-            }
-
-            status.innerText = "🤖 Removing Background... (Takes 5-15s)";
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-15s)";
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
-            // 🚀 2. Model assets fetching from JSDELIVR (No CORS Block on Mobile/Jio)
+            // 🚀 THE REAL FIX: "-data" add kar diya gaya hai yahan aur Official Server use hua hai
             const config = { 
-                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
+                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.5.5/dist/' 
             };
             
-            const transparentBlob = await removeBg(blob, config);
+            const transparentBlob = await bgRemover(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
