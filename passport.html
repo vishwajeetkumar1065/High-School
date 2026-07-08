@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 CLEAN JSDELIVR SCRIPT (Blocked nahi hoga) -->
+    <!-- 🚀 OpenCV aur DB link -->
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=epic_fix"></script>
+    <script src="config.js?v=absolute_final"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -143,29 +142,31 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Waking up AI Engine...";
+            status.innerText = "🤖 Downloading AI Engine... (Please wait 10s)";
             await new Promise(r => setTimeout(r, 100)); 
 
-            let bgRemover = window.imglyRemoveBackground;
-            if (typeof bgRemover !== 'function') {
-                if (bgRemover && typeof bgRemover.default === 'function') {
-                    bgRemover = bgRemover.default;
-                } else if (bgRemover && typeof bgRemover.removeBackground === 'function') {
-                    bgRemover = bgRemover.removeBackground;
-                } else {
-                    throw new Error("AI script load nahi ho paayi.");
-                }
+            let removeBg;
+            try {
+                // 🚀 YE IMPORT AAPKE PHONE PAR CHALA THA!
+                const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
+                removeBg = imgly.default || imgly.removeBackground;
+            } catch (err) {
+                throw new Error("AI dimag load nahi ho paya: " + err.message);
             }
 
-            status.innerText = "🤖 Removing Background using AI... (Takes 5-15s)";
+            if (typeof removeBg !== 'function') {
+                throw new Error("AI load hua par function missing hai.");
+            }
+
+            status.innerText = "🤖 Removing Background... (Takes 5-15s)";
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
-            // 🚀 THE REAL FIX: "-data" add kar diya gaya hai yahan aur Official Server use hua hai
+            // 🚀 THE ULTIMATE FIX: "-data" add kiya aur OFFICIAL STATIC LINK lagaya!
             const config = { 
-                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.5.5/dist/' 
+                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.4.3/dist/' 
             };
             
-            const transparentBlob = await bgRemover(blob, config);
+            const transparentBlob = await removeBg(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
