@@ -7,7 +7,7 @@
     
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=hd_fix"></script>
+    <script src="config.js?v=python_backend"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -16,6 +16,7 @@
         h2 { color: #1976d2; margin-top: 0; }
         
         .info-banner { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 10px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
+        .offline-banner { font-size: 13px; font-weight: bold; color: #1565c0; background: #e3f2fd; padding: 5px; border-radius: 4px; margin-bottom: 15px; }
         
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
@@ -24,7 +25,7 @@
         .upload-btn { background: #ff9800; color: white; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-block; width: 100%; margin-bottom: 15px; border: 2px solid #e65100; transition: opacity 0.3s; }
         input[type="file"] { display: none; }
         
-        .status-box { background: #e3f2fd; color: #1565c0; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; }
+        .status-box { background: #fff3e0; color: #e65100; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; border: 1px dashed #ffb74d; }
         
         .controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
         .controls select { flex: 1; min-width: 30%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
@@ -36,20 +37,14 @@
         #finalCanvas { max-width: 100%; height: auto; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; }
         
         #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
-        #submitBtn:disabled { cursor: not-allowed; opacity: 0.5; }
-        #debugBox { display: none; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>📸 HD Passport Photo Maker</h2>
-    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
+    <div class="offline-banner">⚡ Powered by Local Python Server</div>
     
-    <div class="info-banner">
-        📸 System Ready! Select Customer Photo.
-    </div>
-
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
@@ -73,13 +68,12 @@
         </select>
 
         <select id="faceClean">
-            <option value="yes">Face Clean: ON ✨</option>
+            <option value="yes">Face Clean: Soft ✨</option>
             <option value="no">Face Clean: OFF</option>
         </select>
     </div>
 
     <div id="statusBox" class="status-box">Processing...</div>
-    <div id="debugBox"></div>
 
     <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
 
@@ -99,18 +93,12 @@
 </div>
 
 <script>
-    let rawImg = new Image();
+    let rawBlob = null;
     let imgLoaded = false;
     const perSheetRate = 30; 
 
-    function showError(step, errorMsg) {
-        const box = document.getElementById("debugBox");
-        box.style.display = "block";
-        box.innerHTML = `⚠️ <b>ERROR AT:</b> ${step}<br><br><b>DETAILS:</b><br>${errorMsg}`;
-        document.getElementById('statusBox').style.display = "none";
-        document.getElementById('processBtn').disabled = false;
-        document.getElementById('processBtn').innerText = "Try Again";
-    }
+    // LOCAL PYTHON SERVER URL
+    const PYTHON_SERVER_URL = "http://localhost:5000/api/remove-bg";
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -120,17 +108,10 @@
     function loadImage(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            rawImg.src = e.target.result;
-            rawImg.onload = () => {
-                imgLoaded = true;
-                document.getElementById('processBtn').disabled = false;
-                document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
-            };
-        };
-        reader.readAsDataURL(file);
+        rawBlob = file; // Store raw file for sending to Python
+        imgLoaded = true;
+        document.getElementById('processBtn').disabled = false;
+        document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
     }
 
     async function generatePassportPhotos() {
@@ -141,38 +122,36 @@
         
         btn.disabled = true;
         status.style.display = "block";
-        document.getElementById('debugBox').style.display = "none";
         document.getElementById('previewText').style.display = "none";
         document.getElementById('finalCanvas').style.display = "none";
         document.getElementById('orderSection').style.display = "none";
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Waking up HD AI Engine...";
-            await new Promise(r => setTimeout(r, 100)); 
+            status.innerText = "🤖 Sending to Python Server... (First time takes 1-2 mins to setup AI)";
+            
+            // 🚀 SENDING PHOTO TO YOUR PYTHON SERVER
+            const formData = new FormData();
+            formData.append("image", rawBlob);
 
-            let removeBg;
-            const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
-            removeBg = imgly.default || imgly.removeBackground;
+            const response = await fetch(PYTHON_SERVER_URL, {
+                method: "POST",
+                body: formData
+            });
 
-            // HD MODEL DOWNLOAD MESSAGE
-            status.innerText = "📥 Downloading HD Model... (Kripya thoda wait karein. Quality saaf ho rahi hai!)";
-            
-            const blob = await fetch(rawImg.src).then(res => res.blob());
-            
-            // 🚀 MAGIC FIX: 'small' model hata diya gaya hai. Ab default (Medium HD) model load hoga.
-            const config = { 
-                publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.4.3/dist/'
-            };
-            
-            const transparentBlob = await removeBg(blob, config);
+            if (!response.ok) throw new Error("Python Server se connect nahi ho paya! Kya CMD me server running hai?");
+
+            const transparentBlob = await response.blob();
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
             noBgImg.src = transparentUrl;
-            await new Promise((resolve) => { noBgImg.onload = resolve; });
+            await new Promise((resolve, reject) => { 
+                noBgImg.onload = resolve; 
+                noBgImg.onerror = () => reject("Python se image load nahi hui.");
+            });
             
-            status.innerText = "✨ Enhancing Photo Quality & Formatting...";
+            status.innerText = "✨ Auto-Cropping & Formatting...";
             await new Promise(r => setTimeout(r, 50));
 
             const pWidth = 413;
@@ -183,13 +162,13 @@
             singleCvs.height = pHeight;
             let sCtx = singleCvs.getContext('2d');
 
-            // 🚀 MAGIC FIX: Ultra-HD Image Smoothing
             sCtx.imageSmoothingEnabled = true;
             sCtx.imageSmoothingQuality = 'high';
 
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
+            // 🚀 SMART ZOOM & CROP
             const zoomValue = parseFloat(document.getElementById('zoomLevel').value);
             const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height) * zoomValue;
             const drawW = noBgImg.width * scale;
@@ -199,14 +178,13 @@
 
             sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
-            // 🚀 MAGIC FIX: Natural Face Clean (Pehle wala bahut strong tha, ab soft kar diya)
+            // 🚀 Natural Soft Face Filter (Skin texture barkarar rahegi)
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
                         let src = cv.imread(singleCvs);
                         let dst = new cv.Mat();
                         cv.cvtColor(src, src, cv.COLOR_RGBA2RGB, 0);
-                        // Filter ko 9,75,75 se hata kar 5,40,40 kiya gaya hai taaki photo fake na lage
                         cv.bilateralFilter(src, dst, 5, 40, 40, cv.BORDER_DEFAULT);
                         cv.imshow(singleCvs, dst);
                         src.delete(); dst.delete();
@@ -225,7 +203,6 @@
             const finalCvs = document.getElementById('finalCanvas');
             const fCtx = finalCvs.getContext('2d');
             
-            // Final canvas par bhi HD smoothing
             fCtx.imageSmoothingEnabled = true;
             fCtx.imageSmoothingQuality = 'high';
             
@@ -255,10 +232,14 @@
             calculate();
 
         } catch (error) {
-            showError("AI Processing", error.message || error);
+            alert(error.message);
+            btn.disabled = false;
+            btn.innerText = "Try Again";
+            status.style.display = "none";
         }
     }
 
+    // Submit order function remains exactly the same as before
     async function submitOrder() {
         const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
@@ -288,7 +269,7 @@
         try {
             const finalCvs = document.getElementById('finalCanvas');
             const processedBlob = await new Promise(resolve => {
-                finalCvs.toBlob(resolve, 'image/jpeg', 1.0); // 🚀 Highest Image Quality (1.0)
+                finalCvs.toBlob(resolve, 'image/jpeg', 1.0); 
             });
 
             const fileName = `${Date.now()}_passport_4x6.jpg`;
@@ -329,7 +310,7 @@
             }
 
         } catch (err) {
-            showError("Order Submission", err.message);
+            alert(err.message);
             submitBtn.innerText = "Submit Order";
             submitBtn.disabled = false;
         }
