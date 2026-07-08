@@ -7,7 +7,7 @@
     
     <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=python_backend"></script>
+    <script src="config.js?v=auto_studio"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -27,23 +27,28 @@
         
         .status-box { background: #fff3e0; color: #e65100; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; border: 1px dashed #ffb74d; }
         
-        .controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-        .controls select { flex: 1; min-width: 30%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        .controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .controls select { flex: 1; min-width: 45%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
         
         button.process-btn { background: #28a745; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
         button.process-btn:disabled { background: #aaa; cursor: not-allowed; }
         
-        .preview-container { margin-top: 20px; border: 2px dashed #1976d2; padding: 10px; background: #fafafa; border-radius: 8px; overflow: auto; display: flex; justify-content: center; }
+        .preview-container { margin-top: 10px; border: 2px dashed #1976d2; padding: 10px; background: #fafafa; border-radius: 8px; overflow: auto; display: flex; justify-content: center; }
         #finalCanvas { max-width: 100%; height: auto; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: none; }
         
         #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
+        
+        /* 🔥 Sliders Style */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #1976d2; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #bbdefb; border-radius: 3px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📸 HD Passport Photo Maker</h2>
-    <div class="offline-banner">⚡ Powered by Local Python Server</div>
+    <h2>📸 Auto-Smart Passport Maker</h2>
+    <div class="offline-banner">⚡ Powered by Python Studio Server</div>
     
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
@@ -54,20 +59,12 @@
     </label>
 
     <div class="controls">
-        <select id="bgColor">
+        <select id="bgColor" onchange="if(window.noBgImg) redrawCanvas()">
             <option value="#FFFFFF">BG: White</option>
             <option value="#3b82f6">BG: Blue</option>
             <option value="#ef4444">BG: Red</option>
         </select>
-        
-        <select id="zoomLevel">
-            <option value="1">Zoom: Normal</option>
-            <option value="1.3" selected>Zoom: Passport 🔍</option>
-            <option value="1.6">Zoom: Close-Up 🔍</option>
-            <option value="2.0">Zoom: Max 🔍</option>
-        </select>
-
-        <select id="faceClean">
+        <select id="faceClean" onchange="if(window.noBgImg) redrawCanvas()">
             <option value="yes">Face Clean: Soft ✨</option>
             <option value="no">Face Clean: OFF</option>
         </select>
@@ -76,6 +73,36 @@
     <div id="statusBox" class="status-box">Processing...</div>
 
     <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
+
+    <!-- 🔥 STUDIO CONTROL PANEL (WITH AUTO-ADJUST BADGE) -->
+    <div id="liveAdjustControls" style="display: none; background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #1976d2; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <label style="font-size: 14px; font-weight: bold; color: #1565c0; margin: 0;">🎛️ Manual Override</label>
+            <span style="background: #4caf50; color: white; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">✨ Auto-Aligned</span>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Zoom In/Out 🔍</span>
+                <span id="zoomValTxt">1.2x</span>
+            </div>
+            <input type="range" id="zoomSlider" min="1" max="8" step="0.1" value="1.2" oninput="updateSliders()">
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Move Up/Down ↕️</span>
+            </div>
+            <input type="range" id="ySlider" min="-1500" max="1500" step="10" value="0" oninput="updateSliders()">
+        </div>
+
+        <div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px;">
+                <span>Move Left/Right ↔️</span>
+            </div>
+            <input type="range" id="xSlider" min="-1000" max="1000" step="10" value="0" oninput="updateSliders()">
+        </div>
+    </div>
 
     <div class="preview-container">
         <p id="previewText" style="color: #999; margin: 20px 0;">Preview will appear here</p>
@@ -88,7 +115,7 @@
             <input type="number" id="copies" value="1" min="1" oninput="calculate()">
         </div>
         <h3 id="total" style="text-align:center; color: #d32f2f;">Total: ₹30</h3>
-        <button id="submitBtn" onclick="submitOrder()">Submit Order</button>
+        <button id="submitBtn" onclick="submitOrder()">3. Submit Order to Print</button>
     </div>
 </div>
 
@@ -96,9 +123,8 @@
     let rawBlob = null;
     let imgLoaded = false;
     const perSheetRate = 30; 
-
-    // LOCAL PYTHON SERVER URL
     const PYTHON_SERVER_URL = "http://localhost:5000/api/remove-bg";
+    window.noBgImg = null; 
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -108,10 +134,17 @@
     function loadImage(event) {
         const file = event.target.files[0];
         if (!file) return;
-        rawBlob = file; // Store raw file for sending to Python
+        rawBlob = file; 
         imgLoaded = true;
         document.getElementById('processBtn').disabled = false;
         document.getElementById('processBtn').innerText = "2. Magic Process & Generate";
+        
+        window.noBgImg = null;
+        document.getElementById('liveAdjustControls').style.display = "none";
+        document.getElementById('finalCanvas').style.display = "none";
+        document.getElementById('orderSection').style.display = "none";
+        document.getElementById('submitBtn').style.display = "none";
+        document.getElementById('previewText').style.display = "block";
     }
 
     async function generatePassportPhotos() {
@@ -123,14 +156,10 @@
         btn.disabled = true;
         status.style.display = "block";
         document.getElementById('previewText').style.display = "none";
-        document.getElementById('finalCanvas').style.display = "none";
-        document.getElementById('orderSection').style.display = "none";
-        document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Sending to Python Server... (First time takes 1-2 mins to setup AI)";
+            status.innerText = "🤖 Removing Background & Scanning Body... Please wait";
             
-            // 🚀 SENDING PHOTO TO YOUR PYTHON SERVER
             const formData = new FormData();
             formData.append("image", rawBlob);
 
@@ -139,21 +168,129 @@
                 body: formData
             });
 
-            if (!response.ok) throw new Error("Python Server se connect nahi ho paya! Kya CMD me server running hai?");
+            if (!response.ok) throw new Error("Server Error!");
 
             const transparentBlob = await response.blob();
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
-            const noBgImg = new Image();
-            noBgImg.src = transparentUrl;
+            window.noBgImg = new Image();
+            window.noBgImg.src = transparentUrl;
             await new Promise((resolve, reject) => { 
-                noBgImg.onload = resolve; 
-                noBgImg.onerror = () => reject("Python se image load nahi hui.");
+                window.noBgImg.onload = resolve; 
+                window.noBgImg.onerror = () => reject("Image load fail.");
             });
             
-            status.innerText = "✨ Auto-Cropping & Formatting...";
-            await new Promise(r => setTimeout(r, 50));
+            status.style.display = "none";
+            btn.innerText = "✓ Generated Automatically!";
+            btn.style.background = "#6c757d"; 
+            
+            // 🔥 NAYA AUTOMATIC ALGORITHM CALL HOGA
+            document.getElementById('liveAdjustControls').style.display = "block";
+            autoAdjustFrame();
 
+        } catch (error) {
+            alert(error.message);
+            btn.disabled = false;
+            btn.innerText = "Try Again";
+            status.style.display = "none";
+        }
+    }
+
+    // 🚀 NEW SMART ALGORITHM: Ye photo ke transparent pixels padhkar head find karta hai
+    function autoAdjustFrame() {
+        if(!window.noBgImg) return;
+
+        let cvs = document.createElement('canvas');
+        cvs.width = window.noBgImg.width;
+        cvs.height = window.noBgImg.height;
+        let ctx = cvs.getContext('2d');
+        ctx.drawImage(window.noBgImg, 0, 0);
+        let data = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+
+        let topY = -1, bottomY = -1, leftX = cvs.width, rightX = -1;
+
+        // Bounding box dhoondna (Person kahan hai)
+        for (let y = 0; y < cvs.height; y += 4) { 
+            for (let x = 0; x < cvs.width; x += 4) {
+                let alpha = data[(y * cvs.width + x) * 4 + 3];
+                if (alpha > 20) {
+                    if (topY === -1) topY = y;
+                    bottomY = y;
+                    if (x < leftX) leftX = x;
+                    if (x > rightX) rightX = x;
+                }
+            }
+        }
+
+        if(topY === -1) { redrawCanvas(); return; } 
+
+        let subjHeight = bottomY - topY;
+        
+        // Head ki width nikalna (Top se 8% neeche aakar)
+        let testY = topY + Math.floor(subjHeight * 0.08); 
+        let headL = cvs.width, headR = 0;
+        
+        for (let x = 0; x < cvs.width; x++) {
+            if (data[(testY * cvs.width + x) * 4 + 3] > 20) {
+                if (x < headL) headL = x;
+                if (x > headR) headR = x;
+            }
+        }
+        
+        let headWidth = headR - headL;
+        if(headWidth <= 0) headWidth = (rightX - leftX) * 0.4; 
+        
+        let headCenterX = (headL + headR) / 2;
+
+        const pWidth = 413;
+        const pHeight = 531;
+
+        // Head photo ke 55% hisse (width) mein aana chahiye (Perfect Passport size)
+        let targetDrawHeadWidth = pWidth * 0.55;
+        let requiredScale = targetDrawHeadWidth / headWidth;
+        let defaultScale = Math.max(pWidth / window.noBgImg.width, pHeight / window.noBgImg.height);
+        
+        // Zoom Set Karna
+        let finalZoom = requiredScale / defaultScale;
+        if(finalZoom < 1) finalZoom = 1;
+        if(finalZoom > 8) finalZoom = 8;
+        let appliedScale = defaultScale * finalZoom;
+
+        // X and Y Offset Set Karna
+        let drawW = window.noBgImg.width * appliedScale;
+        let defaultDrawX = (pWidth - drawW) / 2;
+        let currentHeadXOnCanvas = defaultDrawX + (headCenterX * appliedScale);
+        let targetXOffset = (pWidth / 2) - currentHeadXOnCanvas;
+
+        let drawH = window.noBgImg.height * appliedScale;
+        let defaultDrawY = (pHeight - drawH) * 0.10;
+        let currentHeadTopOnCanvas = defaultDrawY + (topY * appliedScale);
+        
+        // Sar (Head) ke upar 8% ka gap chhodna
+        let targetTopGap = pHeight * 0.08;
+        let targetYOffset = targetTopGap - currentHeadTopOnCanvas;
+
+        // Sliders ko Automatic Naye Values de dena!
+        document.getElementById('zoomSlider').value = finalZoom.toFixed(2);
+        document.getElementById('xSlider').value = targetXOffset.toFixed(0);
+        document.getElementById('ySlider').value = targetYOffset.toFixed(0);
+        document.getElementById('zoomValTxt').innerText = finalZoom.toFixed(2) + "x";
+        
+        redrawCanvas();
+    }
+
+    function updateSliders() {
+        document.getElementById('zoomValTxt').innerText = document.getElementById('zoomSlider').value + "x";
+        redrawCanvas();
+    }
+
+    let redrawTimeout = null;
+    function redrawCanvas() {
+        if (!window.noBgImg) return;
+        
+        if(redrawTimeout) cancelAnimationFrame(redrawTimeout);
+        redrawTimeout = requestAnimationFrame(() => {
+            
             const pWidth = 413;
             const pHeight = 531;
             
@@ -168,17 +305,19 @@
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
-            // 🚀 SMART ZOOM & CROP
-            const zoomValue = parseFloat(document.getElementById('zoomLevel').value);
-            const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height) * zoomValue;
-            const drawW = noBgImg.width * scale;
-            const drawH = noBgImg.height * scale;
-            const dx = (pWidth - drawW) / 2;
-            const dy = (pHeight - drawH) * 0.12; 
+            const zoomValue = parseFloat(document.getElementById('zoomSlider').value);
+            const yOffset = parseFloat(document.getElementById('ySlider').value);
+            const xOffset = parseFloat(document.getElementById('xSlider').value);
 
-            sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
+            const scale = Math.max(pWidth / window.noBgImg.width, pHeight / window.noBgImg.height) * zoomValue;
+            const drawW = window.noBgImg.width * scale;
+            const drawH = window.noBgImg.height * scale;
+            
+            const dx = (pWidth - drawW) / 2 + xOffset;
+            const dy = (pHeight - drawH) * 0.10 + yOffset; 
 
-            // 🚀 Natural Soft Face Filter (Skin texture barkarar rahegi)
+            sCtx.drawImage(window.noBgImg, dx, dy, drawW, drawH);
+
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
                     if (typeof cv !== 'undefined' && cv.Mat) {
@@ -190,7 +329,7 @@
                         src.delete(); dst.delete();
                     }
                 } catch (cvError) {
-                    console.warn("OpenCV error:", cvError);
+                    console.warn("OpenCV error");
                 }
             }
 
@@ -198,14 +337,11 @@
             sCtx.strokeStyle = "black";
             sCtx.strokeRect(0, 0, pWidth, pHeight);
 
-            status.innerText = "📄 Arranging 8 Photos on 4x6 Sheet...";
-            
             const finalCvs = document.getElementById('finalCanvas');
             const fCtx = finalCvs.getContext('2d');
             
             fCtx.imageSmoothingEnabled = true;
             fCtx.imageSmoothingQuality = 'high';
-            
             fCtx.fillStyle = "#FFFFFF";
             fCtx.fillRect(0, 0, finalCvs.width, finalCvs.height);
 
@@ -222,38 +358,20 @@
                 }
             }
 
-            status.style.display = "none";
-            btn.innerText = "✓ Generated Successfully!";
-            btn.style.background = "#6c757d"; 
             finalCvs.style.display = "block";
-            
             document.getElementById('orderSection').style.display = "block";
             document.getElementById('submitBtn').style.display = "block";
             calculate();
-
-        } catch (error) {
-            alert(error.message);
-            btn.disabled = false;
-            btn.innerText = "Try Again";
-            status.style.display = "none";
-        }
+        });
     }
 
-    // Submit order function remains exactly the same as before
     async function submitOrder() {
         const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
-
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('admin') === 'vishu') {
-            localStorage.setItem('adminMode', 'true');
-        } else if (urlParams.get('admin') === 'off') {
-            localStorage.removeItem('adminMode'); 
-        }
         const isAdmin = localStorage.getItem('adminMode') === 'true';
 
         const lastOrderTime = localStorage.getItem("last_order_time");
         if (!isAdmin && lastOrderTime && (Date.now() - parseInt(lastOrderTime)) < 60000) { 
-            alert("⏳ Security Alert: Please wait 1 minute before placing another order.");
+            alert("⏳ Please wait 1 minute before placing another order.");
             return;
         }
 
@@ -303,7 +421,7 @@
             localStorage.setItem("current_order_id", order[0].id);
             
             if (isAdmin) {
-                alert("👑 Owner Mode: Passport photo sent directly to printer! No payment required.");
+                alert("👑 Owner Mode: Passport photo sent directly to printer!");
                 window.location.reload(); 
             } else {
                 window.location.href = "payment.html"; 
@@ -311,11 +429,6 @@
 
         } catch (err) {
             alert(err.message);
-            submitBtn.innerText = "Submit Order";
+            submitBtn.innerText = "Submit Order to Print";
             submitBtn.disabled = false;
-        }
-    }
-</script>
-
-</body>
-</html>
+    
