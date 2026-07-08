@@ -5,19 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 THE GOLDEN COMBINATION (No CORS Block, No Missing Files) -->
-    <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.3.0/dist/browser/bundle.js"></script>
+    <!-- 🚀 JSDELIVR STANDARD SCRIPT (100% Caching aur Module Errors se Mukt) -->
+    <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=final"></script>
+    <script src="config.js?v=final_debug"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
         body { background: #eef2f3; padding: 10px; text-align: center; }
         .card { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { color: #1976d2; margin-top: 0; }
-        
-        .info-banner { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 10px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
         
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
@@ -39,6 +37,9 @@
         
         #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
         #submitBtn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        /* 🚀 ON-SCREEN DEBUG BOX */
+        #debugBox { display: none; background: #ffebee; color: #d32f2f; border: 2px solid #f44336; padding: 15px; margin-bottom: 15px; border-radius: 6px; font-size: 13px; text-align: left; font-family: monospace; overflow-x: auto; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -46,15 +47,11 @@
 <div class="card">
     <h2>📸 Passport Photo Maker</h2>
     <p style="color: #666; font-size: 13px; margin-bottom: 15px;">8 Photos | 3.5cm x 4.5cm | 4x6 Sheet</p>
-
-    <!-- UI Humesha Ready -->
-    <div class="info-banner">
-        📸 System Ready! Select Customer Photo.
-    </div>
-
+    
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
+    <!-- BUTTON HUMESHA ACTIVE RAHEGA -->
     <label class="upload-btn">
         1. Select Customer Photo
         <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
@@ -73,6 +70,9 @@
     </div>
 
     <div id="statusBox" class="status-box">Processing...</div>
+
+    <!-- 🚀 LAAL DABBA (ERROR CATCHER) -->
+    <div id="debugBox"></div>
 
     <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
 
@@ -95,6 +95,16 @@
     let rawImg = new Image();
     let imgLoaded = false;
     const perSheetRate = 30; 
+
+    // Error UI Print Function
+    function showError(step, errorMsg) {
+        const box = document.getElementById("debugBox");
+        box.style.display = "block";
+        box.innerHTML = `⚠️ <b>ERROR AT:</b> ${step}<br><br><b>DETAILS:</b><br>${errorMsg}`;
+        document.getElementById('statusBox').style.display = "none";
+        document.getElementById('processBtn').disabled = false;
+        document.getElementById('processBtn').innerText = "Try Again";
+    }
 
     function calculate() {
         let copies = parseInt(document.getElementById("copies").value) || 1;
@@ -125,57 +135,39 @@
         
         btn.disabled = true;
         status.style.display = "block";
+        document.getElementById('debugBox').style.display = "none";
         document.getElementById('previewText').style.display = "none";
         document.getElementById('finalCanvas').style.display = "none";
         document.getElementById('orderSection').style.display = "none";
         document.getElementById('submitBtn').style.display = "none";
 
-        let finalImageSource = rawImg; 
-
         try {
-            status.innerText = "🤖 Checking AI Engine...";
-            status.style.color = "#1565c0";
+            status.innerText = "🤖 Preparing AI Engine...";
             await new Promise(r => setTimeout(r, 100)); 
 
-            // 🚀 SMART CHECK: JSDelivr version 1.3.0
-            if (typeof window.imglyRemoveBackground === 'function') {
-                try {
-                    status.innerText = "🤖 Removing Background using AI... (Takes 5-15s)";
-                    const blob = await fetch(rawImg.src).then(res => res.blob());
-                    
-                    // Matching exact CDN path
-                    const config = { 
-                        publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.3.0/dist/' 
-                    };
-                    
-                    const transparentBlob = await window.imglyRemoveBackground(blob, config);
-                    const transparentUrl = URL.createObjectURL(transparentBlob);
-                    
-                    const noBgImg = new Image();
-                    noBgImg.src = transparentUrl;
-                    await new Promise((resolve) => { noBgImg.onload = resolve; });
-                    
-                    finalImageSource = noBgImg; 
-                } catch (aiError) {
-                    console.error("AI Extractor Error:", aiError);
-                    let fallback = confirm("❌ Internet error ki wajah se Background saaf nahi ho paya.\n\nKya aap bina background clean kiye Original photo print karna chahti hain?");
-                    if (!fallback) {
-                        btn.disabled = false;
-                        status.style.display = "none";
-                        btn.innerText = "Try Again";
-                        return;
-                    }
-                }
-            } else {
-                let skipConfirm = confirm("⚠️ AI Load nahi ho paya (Slow Internet / Blocked).\n\nKya aap bina background clean kiye Original photo se Passport Photo banana chahti hain?");
-                if (!skipConfirm) {
-                    btn.disabled = false;
-                    status.style.display = "none";
-                    btn.innerText = "Try Again";
-                    return;
-                }
+            let bgRemover = window.imglyRemoveBackground;
+            
+            if (typeof bgRemover !== 'function') {
+                throw new Error("Imgly script load nahi ho paayi. Browser ya Network CDN link ko block kar raha hai.");
             }
 
+            status.innerText = "🤖 Removing Background using AI... (Takes 5-15s)";
+            const blob = await fetch(rawImg.src).then(res => res.blob());
+            
+            const config = { 
+                publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
+            };
+            
+            const transparentBlob = await bgRemover(blob, config);
+            const transparentUrl = URL.createObjectURL(transparentBlob);
+            
+            const noBgImg = new Image();
+            noBgImg.src = transparentUrl;
+            await new Promise((resolve, reject) => { 
+                noBgImg.onload = resolve; 
+                noBgImg.onerror = () => reject("Failed to load processed AI image.");
+            });
+            
             status.innerText = "✨ Formatting to Passport Size...";
             await new Promise(r => setTimeout(r, 50));
 
@@ -190,13 +182,13 @@
             sCtx.fillStyle = document.getElementById('bgColor').value;
             sCtx.fillRect(0, 0, pWidth, pHeight);
 
-            const scale = Math.max(pWidth / finalImageSource.width, pHeight / finalImageSource.height);
-            const drawW = finalImageSource.width * scale;
-            const drawH = finalImageSource.height * scale;
+            const scale = Math.max(pWidth / noBgImg.width, pHeight / noBgImg.height);
+            const drawW = noBgImg.width * scale;
+            const drawH = noBgImg.height * scale;
             const dx = (pWidth - drawW) / 2;
             const dy = (pHeight - drawH) / 10; 
 
-            sCtx.drawImage(finalImageSource, dx, dy, drawW, drawH);
+            sCtx.drawImage(noBgImg, dx, dy, drawW, drawH);
 
             if (document.getElementById('faceClean').value === 'yes') {
                 try {
@@ -209,7 +201,7 @@
                         src.delete(); dst.delete();
                     }
                 } catch (cvError) {
-                    console.warn("OpenCV skipped.");
+                    console.warn("OpenCV error:", cvError);
                 }
             }
 
@@ -248,11 +240,7 @@
             calculate();
 
         } catch (error) {
-            console.error("System Error:", error);
-            status.innerText = "❌ System Error. Kripya page refresh karein.";
-            status.style.color = "red";
-            btn.disabled = false;
-            btn.innerText = "Try Again";
+            showError("AI Processing", error.message || error);
         }
     }
 
@@ -326,7 +314,7 @@
             }
 
         } catch (err) {
-            alert(err.message);
+            showError("Order Submission", err.message);
             submitBtn.innerText = "Submit Order";
             submitBtn.disabled = false;
         }
