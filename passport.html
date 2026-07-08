@@ -5,11 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart Passport Photo Maker</title>
     
-    <!-- 🚀 JSDELIVR STANDARD SCRIPT (100% Caching aur Module Errors se Mukt) -->
-    <script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser/bundle.js"></script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/opencv.js/4.5.5/opencv.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=final_debug"></script>
+    <script src="config.js?v=master_fix"></script>
     
     <style>
         * { touch-action: manipulation; box-sizing: border-box; font-family: sans-serif; }
@@ -38,7 +36,6 @@
         #submitBtn { background: #1976d2; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; display: none; transition: opacity 0.2s; }
         #submitBtn:disabled { cursor: not-allowed; opacity: 0.5; }
 
-        /* 🚀 ON-SCREEN DEBUG BOX */
         #debugBox { display: none; background: #ffebee; color: #d32f2f; border: 2px solid #f44336; padding: 15px; margin-bottom: 15px; border-radius: 6px; font-size: 13px; text-align: left; font-family: monospace; overflow-x: auto; font-weight: bold; }
     </style>
 </head>
@@ -51,7 +48,6 @@
     <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
     <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
 
-    <!-- BUTTON HUMESHA ACTIVE RAHEGA -->
     <label class="upload-btn">
         1. Select Customer Photo
         <input type="file" id="uploadImage" accept="image/*" onchange="loadImage(event)">
@@ -70,8 +66,6 @@
     </div>
 
     <div id="statusBox" class="status-box">Processing...</div>
-
-    <!-- 🚀 LAAL DABBA (ERROR CATCHER) -->
     <div id="debugBox"></div>
 
     <button id="processBtn" class="process-btn" onclick="generatePassportPhotos()" disabled>2. Magic Process & Generate</button>
@@ -96,7 +90,6 @@
     let imgLoaded = false;
     const perSheetRate = 30; 
 
-    // Error UI Print Function
     function showError(step, errorMsg) {
         const box = document.getElementById("debugBox");
         box.style.display = "block";
@@ -142,30 +135,39 @@
         document.getElementById('submitBtn').style.display = "none";
 
         try {
-            status.innerText = "🤖 Preparing AI Engine...";
+            status.innerText = "🤖 Downloading AI Engine... (Please wait 10s)";
             await new Promise(r => setTimeout(r, 100)); 
 
-            let bgRemover = window.imglyRemoveBackground;
-            
-            if (typeof bgRemover !== 'function') {
-                throw new Error("Imgly script load nahi ho paayi. Browser ya Network CDN link ko block kar raha hai.");
+            // 🚀 THE MASTER FIX: 
+            // 1. Script fetching from ESM.SH (No Syntax/Lodash Bug)
+            let removeBg;
+            try {
+                const imgly = await import('https://esm.sh/@imgly/background-removal@1.4.3');
+                removeBg = imgly.default || imgly.removeBackground;
+            } catch (err) {
+                throw new Error("Module Load Fail (ESM.sh): " + err.message);
             }
 
-            status.innerText = "🤖 Removing Background using AI... (Takes 5-15s)";
+            if (typeof removeBg !== 'function') {
+                throw new Error("Module loaded but removeBackground function missing.");
+            }
+
+            status.innerText = "🤖 Removing Background... (Takes 5-15s)";
             const blob = await fetch(rawImg.src).then(res => res.blob());
             
+            // 🚀 2. Model assets fetching from JSDELIVR (No CORS Block on Mobile/Jio)
             const config = { 
                 publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/' 
             };
             
-            const transparentBlob = await bgRemover(blob, config);
+            const transparentBlob = await removeBg(blob, config);
             const transparentUrl = URL.createObjectURL(transparentBlob);
             
             const noBgImg = new Image();
             noBgImg.src = transparentUrl;
             await new Promise((resolve, reject) => { 
                 noBgImg.onload = resolve; 
-                noBgImg.onerror = () => reject("Failed to load processed AI image.");
+                noBgImg.onerror = () => reject("Failed to load processed image.");
             });
             
             status.innerText = "✨ Formatting to Passport Size...";
