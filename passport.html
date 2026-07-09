@@ -17,7 +17,7 @@
         h2 { color: #1976d2; margin-top: 0; }
         
         .info-banner { font-size: 14px; font-weight: bold; margin-bottom: 15px; padding: 10px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #4caf50; }
-      .offline-banner { font-size: 13px; font-weight: bold; color: #1565c0; background: #e3f2fd; padding: 5px; border-radius: 4px; margin-bottom: 15px; }
+        .offline-banner { font-size: 13px; font-weight: bold; color: #1565c0; background: #e3f2fd; padding: 5px; border-radius: 4px; margin-bottom: 15px; }
         
         .input-group { margin-bottom: 15px; text-align: left; }
         .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
@@ -28,7 +28,7 @@
         
         .status-box { background: #fff3e0; color: #e65100; padding: 10px; border-radius: 6px; font-weight: bold; display: none; margin-bottom: 15px; border: 1px dashed #ffb74d; }
         
-       .controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
         .controls select { flex: 1; min-width: 45%; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-weight: bold; font-size: 13px; }
         
         button.process-btn { background: #28a745; color: white; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
@@ -120,10 +120,13 @@
 </div>
 
 <script>
-  let rawBlob = null;
+    let rawBlob = null;
     let imgLoaded = false;
     const perSheetRate = 30; 
+    
+    // 🔥 PC ka LAN IP Address yahan daala gaya hai
     const PYTHON_SERVER_URL = "http://192.16.5.180:5000/api/remove-bg";
+    
     window.noBgImg = null; 
 
     window.calculate = function() {
