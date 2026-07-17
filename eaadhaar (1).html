@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Aadhar Direct Print</title>
+
+    <!-- PDF.js for reading E-Aadhar securely in browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+
+    <!-- Supabase JS client — used to upload the cropped Aadhaar image and drop
+         it into the "orders" queue. The dedicated Aadhaar printer on the shop
+         PC (print_server.py) polls this table and prints automatically. -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #1e1e2e; color: #cdd6f4; padding: 20px; text-align: center; margin: 0; }
+        
+        .admin-panel { max-width: 800px; margin: auto; background: #313244; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h2 { color: #a6e3a1; margin-top: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+        .badge { background: #f38ba8; color: #11111b; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; vertical-align: middle; margin-left: 10px; }
+
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+        input[type="file"] { display: none; }
+        .upload-btn { background: #89b4fa; color: #11111b; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.3s; }
+        .upload-btn:hover { background: #74a1f9; }
+        
+        input[type="text"] { padding: 12px; border-radius: 6px; border: 1px solid #45475a; background: #11111b; color: white; flex: 1; font-size: 15px; text-align: center; font-weight: bold; letter-spacing: 1px; }
+        input[type="text"]::placeholder { color: #6c7086; letter-spacing: normal; font-weight: normal; }
+
+        button.action-btn { background: #a6e3a1; color: #11111b; border: none; padding: 12px 25px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 15px; transition: 0.3s; }
+        button.action-btn:hover { background: #94d68f; }
+        button.action-btn:disabled { background: #45475a; color: #9399b2; cursor: not-allowed; }
+        button.print-btn { background: #fab387; margin-top: 15px; display: none; }
+
+        .status { color: #f9e2af; font-weight: bold; margin-bottom: 15px; display: none; }
+
+        /* Preview Area */
+        .preview-wrapper { background: white; padding: 10px; border-radius: 4px; overflow: auto; max-height: 500px; display: none; }
+        #printCanvas { max-width: 100%; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+
+        /* 🔥 CSS FOR PRINTING 🔥 */
+        @media print {
+            body * { visibility: hidden; }
+            .preview-wrapper, .preview-wrapper * { visibility: visible; }
+            .preview-wrapper { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; max-height: none; background: none; }
+            #printCanvas { width: 210mm; height: 297mm; border: none; box-shadow: none; object-fit: contain; }
+            @page { size: A4; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="admin-panel">
+    <h2>E-Aadhar Direct Print <span class="badge">FULL LETTER PDF</span></h2>
+    <p style="font-size: 13px; color: #a6adc8; margin-bottom: 20px;">Direct crop &amp; arrange — no manual selection. For the standard full-letter e-Aadhaar (card at bottom of page).</p>
+
+    <div class="input-group">
+        <label class="upload-btn">
+            📂 1. Select E-Aadhar PDF
+            <input type="file" id="fileInput" accept="application/pdf">
+        </label>
+        <input type="text" id="pdfPassword" placeholder="PDF Password (e.g. KHUS2003)">
+    </div>
+    <div class="input-group">
+        <input type="text" id="customerName" placeholder="Customer Name (optional, for order log)">
+        <select id="printerChoice" style="padding:12px; border-radius:6px; border:1px solid #45475a; background:#11111b; color:white; flex:1;">
+            <option value="aadhaar" selected>Aadhaar Printer (dedicated)</option>
+            <option value="color">Color Printer</option>
+            <option value="bw">B/W Printer</option>
+            <option value="passport">Passport Printer</option>
+        </select>
+    </div>
+
+    <div id="statusText" class="status">🔄 Extracting &amp; Cropping... Please wait.</div>
+
+    <button id="processBtn" class="action-btn" onclick="processAadhar()">✂️ 2. Crop &amp; Arrange on A4</button>
+
+    <button id="printBtn" class="action-btn print-btn" onclick="sendToPrintQueue()">🖨️ 3. Send to Aadhaar Printer</button>
+    <div id="printModeNote" class="print-btn" style="display:none; font-size:12px; color:#a6adc8; margin-top:-10px; margin-bottom:15px;">☁️ Uploads to the order queue — the dedicated Aadhaar printer picks it up and prints automatically within a few seconds.</div>
+
+    <div class="preview-wrapper" id="previewArea">
+        <!-- Canvas represents an A4 size page at 300 DPI -->
+        <canvas id="printCanvas" width="2480" height="3508"></canvas>
+    </div>
+</div>
+
+<script>
+    let rawImageCanvas = document.createElement('canvas'); 
+    let rawCtx = rawImageCanvas.getContext('2d');
+    
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+    const statusText = document.getElementById('statusText');
+    const previewArea = document.getElementById('previewArea');
+    const printBtn = document.getElementById('printBtn');
+    
+    // A4 Standard Dimensions (300 DPI)
+    const A4_WIDTH = 2480;
+    const A4_HEIGHT = 3508;
+    const printCanvas = document.getElementById('printCanvas');
+    const printCtx = printCanvas.getContext('2d');
+
+    // 🔥 FIXED, TESTED CROP for the standard Full-Letter e-Aadhaar PDF 🔥
+    // (card cut at the bottom of the page, front-left / back-right)
+    const CROP = {
+        y: 0.721, h: 0.206,
+        frontX: 0.085, backX: 0.500, w: 0.418
+    };
+
+    async function processAadhar() {
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("Please select an E-Aadhar PDF first!");
+            return;
+        }
+        if (file.type !== "application/pdf") {
+            alert("Invalid file type. Please upload the E-Aadhar PDF.");
+            return;
+        }
+
+        statusText.style.display = "block";
+        processBtn.disabled = true;
+        previewArea.style.display = "none";
+        printBtn.style.display = "none";
+
+        try {
+            await loadPDF(file);
+            drawFinalA4();
+
+            statusText.style.display = "none";
+            previewArea.style.display = "block";
+            printBtn.style.display = "block";
+            processBtn.innerText = "✓ Cropped! Scroll down to print.";
+            processBtn.style.background = "#6c7086";
+
+            printModeNote.style.display = "block";
+
+        } catch (error) {
+            console.error(error);
+            alert("Error: " + error.message + "\n(If it's a PDF, make sure the password is correct!)");
+            statusText.style.display = "none";
+        } finally {
+            processBtn.disabled = false;
+        }
+    }
+
+    async function loadPDF(file) {
+        const password = document.getElementById('pdfPassword').value.trim();
+        const fileReader = new FileReader();
+
+        return new Promise((resolve, reject) => {
+            fileReader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                try {
+                    const loadingTask = pdfjsLib.getDocument({ data: typedarray, password: password });
+                    const pdf = await loadingTask.promise;
+                    
+                    const page = await pdf.getPage(1);
+                    
+                    const scale = 4.0; 
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    rawImageCanvas.width = viewport.width;
+                    rawImageCanvas.height = viewport.height;
+                    
+                    const renderContext = { canvasContext: rawCtx, viewport: viewport };
+                    await page.render(renderContext).promise;
+                    resolve();
+                } catch (err) {
+                    reject(new Error(err.name === "PasswordException" ? "Incorrect PDF Password!" : err.message));
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+    }
+
+    function drawFinalA4() {
+        // Clear A4 Canvas and make it white
+        printCtx.fillStyle = "#FFFFFF";
+        printCtx.fillRect(0, 0, A4_WIDTH, A4_HEIGHT);
+
+        const rw = rawImageCanvas.width;
+        const rh = rawImageCanvas.height;
+
+        // Crop rectangles derived from the fixed, tested CROP percentages
+        const frontRect = { x: CROP.frontX * rw, y: CROP.y * rh, w: CROP.w * rw, h: CROP.h * rh };
+        const backRect  = { x: CROP.backX  * rw, y: CROP.y * rh, w: CROP.w * rw, h: CROP.h * rh };
+
+        // 🔥 Aspect-ratio preserving scale — no stretch/distortion 🔥
+        const targetW = 1004;
+        const frontOutH = frontRect.h * (targetW / frontRect.w);
+        const backOutH  = backRect.h  * (targetW / backRect.w);
+        const boxH = Math.max(frontOutH, backOutH);
+
+        // Auto-center on A4
+        const marginX = (A4_WIDTH - (targetW * 2)) / 2; 
+        const marginY = 0; 
+
+        try {
+            // Draw Front Side (Left)
+            printCtx.drawImage(
+                rawImageCanvas,
+                frontRect.x, frontRect.y, frontRect.w, frontRect.h,
+                marginX, marginY, targetW, frontOutH
+            );
+
+            // Draw Back Side (Right)
+            printCtx.drawImage(
+                rawImageCanvas,
+                backRect.x, backRect.y, backRect.w, backRect.h,
+                marginX + targetW, marginY, targetW, backOutH
+            );
+
+            // ✂️ Dashed scissor-cut OUTER box ✂️
+            printCtx.strokeStyle = "#000000"; 
+            printCtx.lineWidth = 3; 
+            printCtx.setLineDash([14, 10]);
+            printCtx.strokeRect(marginX, marginY, targetW * 2, boxH);
+            printCtx.setLineDash([]);
+
+            // ✂️ Dashed scissor-cut CENTER fold line ✂️
+            printCtx.lineWidth = 2;
+            printCtx.setLineDash([14, 10]);
+            printCtx.beginPath();
+            printCtx.moveTo(marginX + targetW, marginY);
+            printCtx.lineTo(marginX + targetW, marginY + boxH);
+            printCtx.stroke();
+            printCtx.setLineDash([]);
+
+            // Scissors icon on the cut line
+            printCtx.font = "48px sans-serif";
+            printCtx.textAlign = "center";
+            printCtx.fillStyle = "#000000";
+            printCtx.save();
+            printCtx.translate(marginX + targetW, marginY + 20);
+            printCtx.rotate(Math.PI / 2);
+            printCtx.fillText("✂️", 0, 0);
+            printCtx.restore();
+            printCtx.textAlign = "left";
+
+        } catch (e) {
+            console.error("Cropping boundary error.", e);
+            alert("Crop error — check the PDF and try again.");
+        }
+    }
+
+    // ============================================================
+    // SUPABASE QUEUE PRINTING
+    //
+    // Flow: crop the E-Aadhaar → upload the finished A4 sheet to Supabase
+    // Storage → insert a row into the "orders" table → print_server.py's
+    // background engine (already polling that table every few seconds)
+    // picks it up and spools it straight to the dedicated Aadhaar printer.
+    // No local print server or QZ Tray needed on this page anymore.
+    //
+    // ⚠️ Only the PUBLIC/anon key belongs here — it's safe to expose in the
+    // browser (it's the same "sb_publishable_..." key from config.py, never
+    // the Razorpay secret or a service-role Supabase key).
+    // ============================================================
+
+    const SUPABASE_URL = "https://irqlvuphoblgjqysteto.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_-8iwefgyZfbxfF93ZjcFbw_G09EA3U-";
+    const STORAGE_BUCKET = "documents";               // must exist in Supabase Storage, set to Public
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const printModeNote = document.getElementById('printModeNote');
+
+    async function sendToPrintQueue() {
+        const printBtnEl = document.getElementById('printBtn');
+        const printerChoice = document.getElementById('printerChoice').value; // aadhaar / color / bw / passport
+        const customerName = document.getElementById('customerName').value.trim();
+
+        printBtnEl.disabled = true;
+        printBtnEl.innerText = "☁️ Uploading...";
+
+        try {
+            // 1) Turn the cropped A4 canvas into a PNG blob.
+            const blob = await new Promise(res => printCanvas.toBlob(res, 'image/png'));
+
+            // 2) Upload it to Supabase Storage under a unique filename.
+            const fileName = `aadhaar/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
+            const { error: uploadError } = await supabaseClient
+                .storage
+                .from(STORAGE_BUCKET)
+                .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+            if (uploadError) throw new Error("Upload failed: " + uploadError.message);
+
+            // 3) Get its public URL — this is what print_server.py downloads
+            //    and spools to the hardware printer.
+            const { data: urlData } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+            const fileUrl = urlData.publicUrl;
+
+            // 4) Insert the order row. payment_status "PAID (ADMIN)" is used
+            //    because this station is staff-operated (walk-in customer
+            //    already paid at the counter) — the engine prints
+            //    "PAID (ADMIN)" / "PAID CASH" / online-paid orders straight
+            //    away without waiting on a Razorpay check.
+            const { error: orderError } = await supabaseClient
+                .from('orders')
+                .insert({
+                    customer_name: customerName || "Walk-in",
+                    print_type: printerChoice,      // "aadhaar" routes to the dedicated Aadhaar printer
+                    pages: 1,
+                    layout_mode: "1",
+                    file_url: fileUrl,
+                    payment_status: "PAID (ADMIN)",
+                    print_status: "Pending",
+                    printed: false,
+                });
+            if (orderError) throw new Error("Queue insert failed: " + orderError.message);
+
+            printModeNote.textContent = "✅ Sent to the print queue — the Aadhaar printer will print it automatically within a few seconds.";
+            printBtnEl.innerText = "✅ Sent to Printer Queue";
+
+        } catch (e) {
+            console.error("Queue print failed:", e);
+            printModeNote.textContent = "⚠️ Could not reach the print queue (" + e.message + "). Falling back to the normal print dialog.";
+            window.print();
+            printBtnEl.innerText = "🖨️ 3. Send to Aadhaar Printer";
+        } finally {
+            printBtnEl.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
