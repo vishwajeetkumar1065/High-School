@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Aadhar Direct Print</title>
+    <title>E-Aadhar Direct Print (HQ)</title>
 
     <!-- PDF.js for reading E-Aadhar securely in browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -19,7 +19,7 @@
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #1e1e2e; color: #cdd6f4; padding: 20px; text-align: center; margin: 0; }
-        
+
         .admin-panel { max-width: 800px; margin: auto; background: #313244; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         h2 { color: #a6e3a1; margin-top: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
         .badge { background: #f38ba8; color: #11111b; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; vertical-align: middle; margin-left: 10px; }
@@ -28,9 +28,11 @@
         input[type="file"] { display: none; }
         .upload-btn { background: #89b4fa; color: #11111b; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.3s; }
         .upload-btn:hover { background: #74a1f9; }
-        
+
         input[type="text"] { padding: 12px; border-radius: 6px; border: 1px solid #45475a; background: #11111b; color: white; flex: 1; font-size: 15px; text-align: center; font-weight: bold; letter-spacing: 1px; }
         input[type="text"]::placeholder { color: #6c7086; letter-spacing: normal; font-weight: normal; }
+
+        select { padding: 12px; border-radius: 6px; border: 1px solid #45475a; background: #11111b; color: white; flex: 1; }
 
         button.action-btn { background: #a6e3a1; color: #11111b; border: none; padding: 12px 25px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 15px; transition: 0.3s; }
         button.action-btn:hover { background: #94d68f; }
@@ -38,10 +40,11 @@
         button.print-btn { background: #fab387; margin-top: 15px; display: none; }
 
         .status { color: #f9e2af; font-weight: bold; margin-bottom: 15px; display: none; }
+        .dpi-note { font-size: 12px; color: #a6adc8; margin-top: -10px; margin-bottom: 15px; }
 
         /* Preview Area */
         .preview-wrapper { background: white; padding: 10px; border-radius: 4px; overflow: auto; max-height: 500px; display: none; }
-        #printCanvas { max-width: 100%; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #printCanvas { max-width: 100%; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.1); image-rendering: -webkit-optimize-contrast; }
 
         /* 🔥 CSS FOR PRINTING 🔥 */
         @media print {
@@ -56,7 +59,7 @@
 <body>
 
 <div class="admin-panel">
-    <h2>E-Aadhar Direct Print <span class="badge">FULL LETTER PDF</span></h2>
+    <h2>E-Aadhar Direct Print <span class="badge">HIGH QUALITY</span></h2>
     <p style="font-size: 13px; color: #a6adc8; margin-bottom: 20px;">Direct crop &amp; arrange — no manual selection. For the standard full-letter e-Aadhaar (card at bottom of page).</p>
 
     <div class="input-group">
@@ -68,42 +71,51 @@
     </div>
     <div class="input-group">
         <input type="text" id="customerName" placeholder="Customer Name (optional, for order log)">
-        <select id="printerChoice" style="padding:12px; border-radius:6px; border:1px solid #45475a; background:#11111b; color:white; flex:1;">
+        <select id="printerChoice">
             <option value="aadhaar" selected>Aadhaar Printer (dedicated)</option>
             <option value="color">Color Printer</option>
             <option value="bw">B/W Printer</option>
             <option value="passport">Passport Printer</option>
         </select>
     </div>
+    <div class="input-group">
+        <select id="dpiChoice">
+            <option value="300">300 DPI (standard)</option>
+            <option value="600" selected>600 DPI (sharp — recommended)</option>
+            <option value="1200">1200 DPI (max quality, slower)</option>
+        </select>
+    </div>
 
-    <div id="statusText" class="status">🔄 Extracting &amp; Cropping... Please wait.</div>
+    <div id="statusText" class="status">🔄 Extracting &amp; Cropping at high resolution... Please wait.</div>
 
     <button id="processBtn" class="action-btn" onclick="processAadhar()">✂️ 2. Crop &amp; Arrange on A4</button>
 
     <button id="printBtn" class="action-btn print-btn" onclick="sendToPrintQueue()">🖨️ 3. Send to Aadhaar Printer</button>
-    <div id="printModeNote" class="print-btn" style="display:none; font-size:12px; color:#a6adc8; margin-top:-10px; margin-bottom:15px;">☁️ Uploads to the order queue — the dedicated Aadhaar printer picks it up and prints automatically within a few seconds.</div>
+    <div id="printModeNote" class="print-btn dpi-note" style="display:none;">☁️ Uploads to the order queue — the dedicated Aadhaar printer picks it up and prints automatically within a few seconds.</div>
 
     <div class="preview-wrapper" id="previewArea">
-        <!-- Canvas represents an A4 size page at 300 DPI -->
-        <canvas id="printCanvas" width="2480" height="3508"></canvas>
+        <canvas id="printCanvas"></canvas>
     </div>
 </div>
 
 <script>
-    let rawImageCanvas = document.createElement('canvas'); 
-    let rawCtx = rawImageCanvas.getContext('2d');
-    
+    let rawImageCanvas = document.createElement('canvas');
+    let rawCtx = rawImageCanvas.getContext('2d', { alpha: false });
+
     const fileInput = document.getElementById('fileInput');
     const processBtn = document.getElementById('processBtn');
     const statusText = document.getElementById('statusText');
     const previewArea = document.getElementById('previewArea');
     const printBtn = document.getElementById('printBtn');
-    
-    // A4 Standard Dimensions (300 DPI)
-    const A4_WIDTH = 2480;
-    const A4_HEIGHT = 3508;
+    const printModeNote = document.getElementById('printModeNote');
     const printCanvas = document.getElementById('printCanvas');
-    const printCtx = printCanvas.getContext('2d');
+    const printCtx = printCanvas.getContext('2d', { alpha: false });
+
+    // A4 physical size in mm
+    const A4_MM = { w: 210, h: 297 };
+    // CR80 card front physical size in mm (standard ID card width used for
+    // e-Aadhaar cropped card face)
+    const CARD_MM = { w: 85.6, h: 53.98 };
 
     // 🔥 FIXED, TESTED CROP for the standard Full-Letter e-Aadhaar PDF 🔥
     // (card cut at the bottom of the page, front-left / back-right)
@@ -111,6 +123,19 @@
         y: 0.721, h: 0.206,
         frontX: 0.085, backX: 0.500, w: 0.418
     };
+
+    function getPrintDPI() {
+        return parseInt(document.getElementById('dpiChoice').value, 10);
+    }
+
+    // PDF render scale is derived from the chosen output DPI so the source
+    // capture is never the bottleneck. PDF.js viewport scale is relative to
+    // 72 DPI (1 PDF point = 1/72 inch), so scale = targetDPI / 72.
+    // We render a bit hotter than the final target (1.25x) so the crop +
+    // downscale step is always sharpening down, never stretching up.
+    function getRenderScale(targetDPI) {
+        return (targetDPI / 72) * 1.25;
+    }
 
     async function processAadhar() {
         const file = fileInput.files[0];
@@ -129,8 +154,9 @@
         printBtn.style.display = "none";
 
         try {
-            await loadPDF(file);
-            drawFinalA4();
+            const dpi = getPrintDPI();
+            await loadPDF(file, dpi);
+            drawFinalA4(dpi);
 
             statusText.style.display = "none";
             previewArea.style.display = "block";
@@ -149,7 +175,7 @@
         }
     }
 
-    async function loadPDF(file) {
+    async function loadPDF(file, targetDPI) {
         const password = document.getElementById('pdfPassword').value.trim();
         const fileReader = new FileReader();
 
@@ -159,16 +185,25 @@
                 try {
                     const loadingTask = pdfjsLib.getDocument({ data: typedarray, password: password });
                     const pdf = await loadingTask.promise;
-                    
+
                     const page = await pdf.getPage(1);
-                    
-                    const scale = 4.0; 
+
+                    const scale = getRenderScale(targetDPI);
                     const viewport = page.getViewport({ scale: scale });
-                    
-                    rawImageCanvas.width = viewport.width;
-                    rawImageCanvas.height = viewport.height;
-                    
-                    const renderContext = { canvasContext: rawCtx, viewport: viewport };
+
+                    rawImageCanvas.width = Math.round(viewport.width);
+                    rawImageCanvas.height = Math.round(viewport.height);
+
+                    // White background avoids transparent-edge artifacts on
+                    // some PDF renders before we draw the page over it.
+                    rawCtx.fillStyle = "#FFFFFF";
+                    rawCtx.fillRect(0, 0, rawImageCanvas.width, rawImageCanvas.height);
+
+                    const renderContext = {
+                        canvasContext: rawCtx,
+                        viewport: viewport,
+                        intent: "print" // asks pdf.js for the higher-fidelity print rendering path
+                    };
                     await page.render(renderContext).promise;
                     resolve();
                 } catch (err) {
@@ -179,10 +214,21 @@
         });
     }
 
-    function drawFinalA4() {
+    function drawFinalA4(targetDPI) {
+        const A4_WIDTH = Math.round((A4_MM.w / 25.4) * targetDPI);
+        const A4_HEIGHT = Math.round((A4_MM.h / 25.4) * targetDPI);
+
+        printCanvas.width = A4_WIDTH;
+        printCanvas.height = A4_HEIGHT;
+
         // Clear A4 Canvas and make it white
         printCtx.fillStyle = "#FFFFFF";
         printCtx.fillRect(0, 0, A4_WIDTH, A4_HEIGHT);
+
+        // Highest-quality resampling the canvas API offers for the
+        // drawImage scale-down step below.
+        printCtx.imageSmoothingEnabled = true;
+        printCtx.imageSmoothingQuality = "high";
 
         const rw = rawImageCanvas.width;
         const rh = rawImageCanvas.height;
@@ -191,15 +237,17 @@
         const frontRect = { x: CROP.frontX * rw, y: CROP.y * rh, w: CROP.w * rw, h: CROP.h * rh };
         const backRect  = { x: CROP.backX  * rw, y: CROP.y * rh, w: CROP.w * rw, h: CROP.h * rh };
 
-        // 🔥 Aspect-ratio preserving scale — no stretch/distortion 🔥
-        const targetW = 1004;
+        // Target card width is DPI-driven (physical CR80 width @ chosen DPI)
+        // instead of a fixed pixel count, so raising DPI actually raises
+        // output sharpness instead of throwing away captured detail.
+        const targetW = Math.round((CARD_MM.w / 25.4) * targetDPI);
         const frontOutH = frontRect.h * (targetW / frontRect.w);
         const backOutH  = backRect.h  * (targetW / backRect.w);
         const boxH = Math.max(frontOutH, backOutH);
 
         // Auto-center on A4
-        const marginX = (A4_WIDTH - (targetW * 2)) / 2; 
-        const marginY = 0; 
+        const marginX = (A4_WIDTH - (targetW * 2)) / 2;
+        const marginY = 0;
 
         try {
             // Draw Front Side (Left)
@@ -216,16 +264,19 @@
                 marginX + targetW, marginY, targetW, backOutH
             );
 
-            // ✂️ Dashed scissor-cut OUTER box ✂️
-            printCtx.strokeStyle = "#000000"; 
-            printCtx.lineWidth = 3; 
-            printCtx.setLineDash([14, 10]);
+            // ✂️ Dashed scissor-cut OUTER box — line width scaled to DPI so
+            // it stays visually consistent instead of vanishing (high DPI)
+            // or looking too thick (low DPI).
+            const lw = Math.max(1, Math.round(targetDPI / 100));
+            printCtx.strokeStyle = "#000000";
+            printCtx.lineWidth = lw;
+            printCtx.setLineDash([lw * 4.5, lw * 3.3]);
             printCtx.strokeRect(marginX, marginY, targetW * 2, boxH);
             printCtx.setLineDash([]);
 
             // ✂️ Dashed scissor-cut CENTER fold line ✂️
-            printCtx.lineWidth = 2;
-            printCtx.setLineDash([14, 10]);
+            printCtx.lineWidth = Math.max(1, lw - 1);
+            printCtx.setLineDash([lw * 4.5, lw * 3.3]);
             printCtx.beginPath();
             printCtx.moveTo(marginX + targetW, marginY);
             printCtx.lineTo(marginX + targetW, marginY + boxH);
@@ -233,11 +284,12 @@
             printCtx.setLineDash([]);
 
             // Scissors icon on the cut line
-            printCtx.font = "48px sans-serif";
+            const fontSize = Math.round(targetDPI / 6.25); // ~48px @ 300 DPI
+            printCtx.font = fontSize + "px sans-serif";
             printCtx.textAlign = "center";
             printCtx.fillStyle = "#000000";
             printCtx.save();
-            printCtx.translate(marginX + targetW, marginY + 20);
+            printCtx.translate(marginX + targetW, marginY + (fontSize * 0.4));
             printCtx.rotate(Math.PI / 2);
             printCtx.fillText("✂️", 0, 0);
             printCtx.restore();
@@ -268,8 +320,6 @@
     const STORAGE_BUCKET = "documents";               // must exist in Supabase Storage, set to Public
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const printModeNote = document.getElementById('printModeNote');
-
     async function sendToPrintQueue() {
         const printBtnEl = document.getElementById('printBtn');
         const printerChoice = document.getElementById('printerChoice').value; // aadhaar / color / bw / passport
@@ -279,8 +329,9 @@
         printBtnEl.innerText = "☁️ Uploading...";
 
         try {
-            // 1) Turn the cropped A4 canvas into a PNG blob.
-            const blob = await new Promise(res => printCanvas.toBlob(res, 'image/png'));
+            // 1) Turn the cropped A4 canvas into a PNG blob (lossless — no
+            // JPEG artifacting on the fine print / photo on the card).
+            const blob = await new Promise(res => printCanvas.toBlob(res, 'image/png', 1.0));
 
             // 2) Upload it to Supabase Storage under a unique filename.
             const fileName = `aadhaar/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
@@ -311,10 +362,11 @@
                     payment_status: "PAID (ADMIN)",
                     print_status: "Pending",
                     printed: false,
+                    print_dpi: getPrintDPI(),
                 });
             if (orderError) throw new Error("Queue insert failed: " + orderError.message);
 
-            printModeNote.textContent = "✅ Sent to the print queue — the Aadhaar printer will print it automatically within a few seconds.";
+            printModeNote.textContent = "✅ Sent to the print queue at " + getPrintDPI() + " DPI — the Aadhaar printer will print it automatically within a few seconds.";
             printBtnEl.innerText = "✅ Sent to Printer Queue";
 
         } catch (e) {
