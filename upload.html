@@ -101,6 +101,7 @@
         <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
     </div>
 
+    <!-- 🔥 Image Print Mode Dropdown -->
     <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #bbdefb;">
         <label style="color: #1565c0;">Image Print Mode:</label>
         <select id="docType" style="font-weight: bold; color: #111;">
@@ -159,9 +160,13 @@
             </div>
         </div>
         
+        <!-- 🔥 THUMBNAIL GALLERY CONTAINER -->
         <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
+            <h3 id="imageStatusFinal" style="font-size: 16px; color: #1976d2; font-weight: bold; margin-bottom: 5px;"></h3>
             <p style="font-size: 14px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ All Images Cropped & Ready</p>
-            <div id="thumbnailGallery" style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; margin-top: 10px; border: 1px solid #ddd; border-radius: 6px; background: #fdfdfd; align-items: center;">
+            
+            <div id="thumbnailGallery" style="display: flex; gap: 12px; overflow-x: auto; padding: 15px 5px; margin-top: 10px; border: 1px solid #ddd; border-radius: 6px; background: #fdfdfd; align-items: center;">
+                <!-- Thumbnails will be injected here by JS -->
             </div>
         </div>
     </div>
@@ -412,6 +417,61 @@ async function handleFileSelectionChange(){
     }
 }
 
+// 🔥 NEW: Render Thumbnail Gallery with Delete (Cross) Buttons
+function renderThumbnailGallery() {
+    const gallery = document.getElementById("thumbnailGallery");
+    gallery.innerHTML = ""; 
+    
+    if (processedA4Images.length === 0) {
+        // Agar saari photos delete ho jayein, UI wapas normal state me le aao
+        document.getElementById("cropPreviewContainer").style.display = "none";
+        document.getElementById("imageStatus").innerText = "";
+        document.getElementById("file").value = ""; 
+        document.getElementById("type").disabled = false;
+    } else {
+        document.getElementById("cropPreviewContainer").style.display = "block";
+        document.getElementById("imageStatusFinal").innerText = `Successfully Processed ${processedA4Images.length} Image(s)`;
+        
+        processedA4Images.forEach((dataUrl, index) => {
+            const imgWrap = document.createElement("div");
+            imgWrap.style.flex = "0 0 auto";
+            imgWrap.style.position = "relative"; // Required for absolute positioning of the cross button
+            
+            const img = document.createElement("img");
+            img.src = dataUrl;
+            img.style.height = "120px"; 
+            img.style.border = "1px solid #ccc";
+            img.style.borderRadius = "4px";
+            img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+            
+            const label = document.createElement("div");
+            label.innerText = `Page ${index + 1}`;
+            label.style.fontSize = "11px";
+            label.style.color = "#555";
+            label.style.marginTop = "4px";
+
+            // 🔥 Create Delete (Cross) Button for this specific image
+            const delBtn = document.createElement("button");
+            delBtn.innerHTML = "✕";
+            delBtn.title = "Remove this page";
+            delBtn.style.cssText = "position:absolute; top:-8px; right:-8px; background:#dc3545; color:white; border:none; border-radius:50%; width:24px; height:24px; font-weight:bold; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.3); z-index:10; display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1; padding:0;";
+            
+            // Delete Logic
+            delBtn.onclick = function() {
+                processedA4Images.splice(index, 1);
+                uploadedImagesList.splice(index, 1); // Keep validation arrays in sync
+                renderThumbnailGallery();
+                calculate();
+            };
+            
+            imgWrap.appendChild(img);
+            imgWrap.appendChild(label);
+            imgWrap.appendChild(delBtn);
+            gallery.appendChild(imgWrap);
+        });
+    }
+}
+
 function loadCurrentImageForCrop() {
     const progressWrapper = document.getElementById("cropProgressWrapper");
     const progressBar = document.getElementById("cropProgressBar");
@@ -434,33 +494,8 @@ function loadCurrentImageForCrop() {
             document.getElementById("docTypeGroup").style.display = "none";
             previewDocument();
         } else {
-            document.getElementById("cropPreviewContainer").style.display = "block";
-            document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
-            
-            const gallery = document.getElementById("thumbnailGallery");
-            gallery.innerHTML = ""; 
-            
-            processedA4Images.forEach((dataUrl, index) => {
-                const imgWrap = document.createElement("div");
-                imgWrap.style.flex = "0 0 auto";
-                
-                const img = document.createElement("img");
-                img.src = dataUrl;
-                img.style.height = "120px"; 
-                img.style.border = "1px solid #ccc";
-                img.style.borderRadius = "4px";
-                img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-                
-                const label = document.createElement("div");
-                label.innerText = `Page ${index + 1}`;
-                label.style.fontSize = "11px";
-                label.style.color = "#555";
-                label.style.marginTop = "4px";
-                
-                imgWrap.appendChild(img);
-                imgWrap.appendChild(label);
-                gallery.appendChild(imgWrap);
-            });
+            // 🔥 Use the new gallery renderer when cropping is fully done
+            renderThumbnailGallery();
         }
         return;
     }
@@ -672,7 +707,6 @@ cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.ac
 window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
 cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
 
-
 // 🔥 A4 POPUP VARIABLES & SMART RATIO LOGIC
 let a4AdjImg = null;
 const a4CanvasW = 1600;
@@ -702,7 +736,6 @@ function openA4AdjustModal(sourceCanvas) {
         
         a4AdjImg = drawCanvas;
         
-        // Setup initial crop ratio and tick checkbox
         currentCropRatio = a4AdjImg.height / a4AdjImg.width;
         document.getElementById('ratioLock').checked = true;
 
@@ -778,7 +811,6 @@ function rotateA4Image() {
     drawA4Adj();
 }
 
-// 🔥 SMART RATIO LOCK LOGIC
 function toggleRatioLock() {
     if (document.getElementById('ratioLock').checked) {
         currentCropRatio = a4AdjImg.height / a4AdjImg.width;
