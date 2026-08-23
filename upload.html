@@ -98,12 +98,6 @@
     </div>
 
     <div id="pdfUI" style="display:none;">
-        <!-- 🔥 BROUGHT BACK PAGE SELECTION FOR PDFs -->
-        <div class="input-group">
-            <label>Pages to Print (e.g., All, 1, 3-5):</label>
-            <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" onchange="extractPdfPages()">
-            <p style="font-size:11px; color:#1976d2; margin-top:4px;">Type page numbers and click outside / press Enter to apply</p>
-        </div>
         <div class="input-group">
             <label>Pages Per Sheet (Layout):</label>
             <select id="layout_mode" onchange="calculate();">
@@ -204,7 +198,6 @@ let uploadedPdfFilesList = [];
 let uploadedImagesList = [];
 let activeRenderTaskId = 0; 
 let currentImageIndex = 0;
-let totalDetectedPDFPages = 0; // Added back to keep track of max valid pages
 
 let processedA4Images = []; 
 let activePdfPages = []; // Stores {fileIdx, pageNum, dataUrl}
@@ -359,7 +352,6 @@ async function handleFileSelectionChange(){
     processedA4Images = [];
     activePdfPages = [];
     currentImageIndex = 0;
-    totalDetectedPDFPages = 0;
 
     for (let i = 0; i < files.length; i++) {
         if (files[i].type.startsWith("image/")) {
@@ -383,15 +375,12 @@ async function handleFileSelectionChange(){
         document.getElementById("imageUI").style.display = "none";
         document.getElementById("docTypeGroup").style.display = "none";
         
-        // 🔥 Reset text box to "All" on new PDF upload
-        document.getElementById("pages").value = "All";
-        
         await extractPdfPages();
         calculate();
     }
 }
 
-// 🔥 AUTO-SYNCING GALLERY WITH TEXT BOX
+// 🔥 UNIVERSAL GALLERY RENDERER FOR BOTH PDFs AND IMAGES
 function renderThumbnailGallery() {
     const gallery = document.getElementById("thumbnailGallery");
     gallery.innerHTML = ""; 
@@ -406,11 +395,10 @@ function renderThumbnailGallery() {
         document.getElementById("file").value = ""; 
         document.getElementById("type").disabled = false;
         
-        if (isPdfMode) {
-            document.getElementById("pages").value = "";
-            document.getElementById("pdfUI").style.display = "none";
-        } else {
+        if (!isPdfMode) {
             document.getElementById("imageUI").style.display = "none";
+        } else {
+            document.getElementById("pdfUI").style.display = "none";
         }
     } else {
         document.getElementById("unifiedGalleryContainer").style.display = "block";
@@ -444,16 +432,7 @@ function renderThumbnailGallery() {
             
             delBtn.onclick = function() {
                 targetArray.splice(index, 1);
-                if (!isPdfMode) {
-                    uploadedImagesList.splice(index, 1);
-                } else {
-                    // 🔥 If PDF mode, Sync the text box automatically
-                    if (activePdfPages.length === 0) {
-                        document.getElementById('pages').value = "";
-                    } else {
-                        document.getElementById('pages').value = activePdfPages.map(p => p.pageNum).join(', ');
-                    }
-                }
+                if (!isPdfMode) uploadedImagesList.splice(index, 1);
                 renderThumbnailGallery();
                 calculate();
             };
@@ -540,22 +519,7 @@ function loadCurrentImageForCrop() {
     reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
 }
 
-function parsePageSelection(pageInput) {
-    let clean = pageInput.replace(/\s+/g, '').toLowerCase();
-    if (clean === "all" || clean === "") return null;
-    let selected = [];
-    clean.split(",").forEach(part => {
-        if (part.includes("-")) { 
-            let [s, e] = part.split("-"); 
-            for (let i = parseInt(s); i <= parseInt(e); i++) selected.push(i); 
-        } else {
-            selected.push(parseInt(part));
-        }
-    });
-    return selected;
-}
-
-// 🔥 READS TEXTBOX, EXTRACTS PDF, RENDERS THUMBNAILS
+// 🔥 PDF EXTRACTION AND THUMBNAIL GENERATION
 async function extractPdfPages() {
     const currentTaskId = ++activeRenderTaskId; 
     
@@ -567,28 +531,14 @@ async function extractPdfPages() {
     activePdfPages = [];
     try {
         let allPdfjsDocs = [];
-        totalDetectedPDFPages = 0; // Recalculate total length in case of multiple PDFs
-
         for(let pdfFile of uploadedPdfFilesList) {
             const arrayBuffer = await pdfFile.arrayBuffer();
             const uint8Data = new Uint8Array(arrayBuffer);
             const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
             allPdfjsDocs.push(pdfjsDoc);
-            totalDetectedPDFPages += pdfjsDoc.numPages;
         }
         
         if (currentTaskId !== activeRenderTaskId) return;
-
-        // Read text box and parse
-        let pageInput = document.getElementById("pages").value.trim();
-        let targetPagesList = parsePageSelection(pageInput);
-        
-        // Resolve bounds
-        let pagesToRender = (targetPagesList === null || targetPagesList.length === 0 || pageInput.toLowerCase() === "all") 
-            ? Array.from({length: totalDetectedPDFPages}, (_, i) => i + 1) 
-            : targetPagesList.filter(p => p >= 1 && p <= totalDetectedPDFPages);
-
-        let globalPageCounter = 1;
 
         for (let docIdx = 0; docIdx < allPdfjsDocs.length; docIdx++) {
             const pdf = allPdfjsDocs[docIdx];
@@ -596,37 +546,27 @@ async function extractPdfPages() {
             for(let localPageNum = 1; localPageNum <= pdf.numPages; localPageNum++) {
                 if (currentTaskId !== activeRenderTaskId) return;
 
-                if (pagesToRender.includes(globalPageCounter)) {
-                    const page = await pdf.getPage(localPageNum);
-                    const viewport = page.getViewport({ scale: 0.8 }); // Lower scale for fast thumbnail
-                    
-                    const canvas = document.createElement('canvas');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    const context = canvas.getContext('2d');
-                    
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-                    
-                    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-                    activePdfPages.push({
-                        fileIdx: docIdx,
-                        pageNum: globalPageCounter,
-                        dataUrl: dataUrl
-                    });
-                }
-                globalPageCounter++;
+                const page = await pdf.getPage(localPageNum);
+                const viewport = page.getViewport({ scale: 0.8 }); // Lower scale for fast thumbnail
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                const context = canvas.getContext('2d');
+                
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                
+                const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                activePdfPages.push({
+                    fileIdx: docIdx,
+                    pageNum: localPageNum,
+                    dataUrl: dataUrl
+                });
             }
         }
-        
-        // Sync the text box back with only valid processed numbers
-        if (pageInput.toLowerCase() !== "all" && targetPagesList !== null) {
-             document.getElementById("pages").value = activePdfPages.map(p => p.pageNum).join(', ');
-        }
-
         renderThumbnailGallery();
-        calculate(); 
     } catch (err) { 
-        console.error("PDF Extract Error: ", err); 
+        console.error("PDF Preview Error: ", err); 
         gallery.innerHTML = "<span style='color:red;'>⚠️ Could not load PDF preview. Refresh and try again.</span>";
     }
 }
@@ -1136,6 +1076,7 @@ function calculate() {
     let price = parseInt(document.getElementById("type").value);
     let sheets = 0;
     
+    // 🔥 FIX: Check length of active arrays instead of original uploaded array
     if (processedA4Images.length > 0) {
         sheets += processedA4Images.length;
     }
@@ -1150,6 +1091,7 @@ function calculate() {
     document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
 }
 
+// 🔥 PDF EXTRACTION AND THUMBNAIL GENERATION
 async function submitOrder() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
@@ -1176,6 +1118,7 @@ async function submitOrder() {
 
     if (uploadedPdfFilesList.length === 0 && uploadedImagesList.length === 0) return alert("Please select a document.");
     
+    // Make sure we have processed everything we are supposed to
     if (uploadedImagesList.length > 0 && processedA4Images.length === 0) {
         return alert("Please wait, images are still processing or you deleted them all.");
     }
@@ -1195,6 +1138,7 @@ async function submitOrder() {
 
         const outPdf = await PDFLib.PDFDocument.create();
         
+        // 1. Process Images if any
         if (processedA4Images.length > 0) {
             for (let dataUrl of processedA4Images) {
                 const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
@@ -1204,16 +1148,18 @@ async function submitOrder() {
             }
         }
 
+        // 2. Process PDF Pages if any
         if (uploadedPdfFilesList.length > 0) {
+            // Group active PDF pages by their original file index
             let pagesToKeepMap = {};
             activePdfPages.forEach(p => {
                 if(!pagesToKeepMap[p.fileIdx]) pagesToKeepMap[p.fileIdx] = [];
-                pagesToKeepMap[p.fileIdx].push(p.pageNum - 1); 
+                pagesToKeepMap[p.fileIdx].push(p.pageNum - 1); // PDFLib expects 0-indexed pages
             });
 
             for (let docIdx = 0; docIdx < uploadedPdfFilesList.length; docIdx++) {
                 let localIndicesToKeep = pagesToKeepMap[docIdx] || [];
-                if(localIndicesToKeep.length === 0) continue; 
+                if(localIndicesToKeep.length === 0) continue; // All pages deleted from this particular doc
 
                 const pdfFile = uploadedPdfFilesList[docIdx];
                 const arrayBuffer = await pdfFile.arrayBuffer();
