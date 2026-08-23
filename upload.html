@@ -1,201 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart Document Upload Pro</title>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <title>ID Card Print (Perspective Tool)</title>
+    <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
     <style>
-        * { touch-action: manipulation; box-sizing: border-box; }
-        body { font-family: sans-serif; background: #f4f4f4; padding: 10px; }
-        .card { max-width: 450px; margin: auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .input-group { margin-bottom: 15px; }
-        .input-group label { font-size: 14px; color: #555; display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        .preview-wrapper { width: 100%; max-width: 400px; height: 350px; margin: 15px auto; border: 2px dashed #1976d2; border-radius: 8px; background: #f8f9fa; overflow: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
-        .preview-box { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        * {
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .canvas-container {
+            position: relative;
+            margin: 15px auto;
+            width: 100%;
+            max-width: 400px;
+            background: #f5f5f5;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            touch-action: none; 
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
         
-        .preview-box.layout-grid-2 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
-        .preview-box.layout-grid-4 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
-        
-        .preview-box canvas { max-width: 100%; height: auto; display: block; border: 1px solid #ddd; border-radius: 4px; }
-        .page-render-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        .canvas-container { position: relative; margin: 15px auto; width: 100%; max-width: 400px; background: #f5f5f5; border: 2px dashed #28a745; border-radius: 8px; overflow: hidden; }
-        #cropCanvas { display: block; width: 100%; height: auto; cursor: crosshair; }
-        .crop-controls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-        .crop-controls button { padding: 8px 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s ease; }
-        .force-grayscale { filter: grayscale(100%) brightness(105%) contrast(105%) !important; }
-        #submitBtn { background: #1976d2; color: white; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s ease; }
-        #submitBtn:disabled, #saveCropBtn:disabled { cursor: not-allowed; }
+        .exit-fullscreen-btn {
+            display: none;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 20px;
+            cursor: pointer;
+            z-index: 100000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
 
-        /* 🔥 A4 ADJUST POPUP MODAL STYLES */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; justify-content: center; align-items: center; flex-direction: column; }
-        .modal-container { background: #fff; padding: 18px; border-radius: 10px; text-align: center; width: 95%; max-width: 380px; max-height: 95vh; display: flex; flex-direction: column; align-items: center; overflow-y: auto; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 6px 0; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #1976d2; cursor: pointer; margin-top: -6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #bbdefb; border-radius: 3px; }
+        .exit-fullscreen-btn:hover {
+            background: #dc3545;
+        }
+
+        .fullscreen-controls {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 10px 20px;
+            border-radius: 30px;
+            z-index: 100000;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #444;
+        }
+
+        .fullscreen-controls button {
+            width: auto;
+            min-width: 100px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 20px;
+        }
+        
+        .canvas-container:fullscreen {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: #111 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 0;
+            margin: 0;
+        }
+        
+        .canvas-container:fullscreen .exit-fullscreen-btn { display: block; }
+        .canvas-container:fullscreen .fullscreen-controls { display: flex; }
+        
+        .canvas-container:fullscreen canvas {
+            width: auto !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: 80vh !important;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border: 1px solid #333;
+        }
+
+        .instructions {
+            font-size: 13px;
+            color: #555;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .side-preview {
+            margin: 15px auto;
+            text-align: center;
+            display: none;
+            scroll-margin-top: 20px;
+            position: relative; /* 🔥 Crucial for absolute delete button positioning */
+            width: max-content;
+        }
+        .side-preview img {
+            width: 180px;
+            height: 114px;
+            object-fit: contain;
+            border: 2px dashed #28a745;
+            border-radius: 6px;
+            background: #fff;
+            padding: 2px;
+        }
+        .side-preview p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            color: #28a745;
+            font-weight: bold;
+        }
+        .input-group {
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            font-size: 14px;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .force-grayscale {
+            filter: grayscale(100%) brightness(102%) contrast(105%) !important;
+        }
+        button:disabled {
+            background-color: #9e9e9e !important;
+            cursor: not-allowed !important;
+        }
     </style>
 </head>
 
 <body>
 
-<!-- 🔥 A4 CUSTOM ADJUST MODAL (POPUP) -->
-<div id="a4AdjustModal" class="modal-overlay">
-    <div class="modal-container">
-        <h3 style="color:#1976d2; margin-top:0; margin-bottom:4px;">📄 Adjust on A4 Sheet</h3>
-        <p style="font-size:12px; color:#555; margin-bottom: 10px;">Document ko ungli se move karein aur LxB sliders se size set karein.</p>
-
-        <!-- A4 Aspect Ratio Canvas Box -->
-        <div style="position:relative; display:inline-block; border: 2px solid #333; background: #ffffff; border-radius: 4px; overflow: hidden; box-shadow: 0 3px 8px rgba(0,0,0,0.2);">
-            <canvas id="a4AdjustCanvas" width="248" height="350" style="touch-action: none; background: #ffffff; cursor: move; display: block;"></canvas>
-        </div>
-
-        <div style="width: 100%; margin-top: 12px; text-align: left;">
-            
-            <!-- 🔥 SMART RATIO LOCK FEATURE -->
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: bold; color: #1565c0; margin-bottom: 12px; cursor: pointer; background: #e3f2fd; padding: 8px; border-radius: 6px; border: 1px dashed #90caf9;">
-                <input type="checkbox" id="ratioLock" checked onchange="toggleRatioLock()" style="width: 18px; height: 18px; margin: 0; cursor: pointer;">
-                🔒 Keep Original Crop Ratio
-            </label>
-
-            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333;">
-                <span>Width (B) ↔️</span><span id="a4Wtxt" style="color:#1976d2;">45%</span>
-            </div>
-            <input type="range" id="a4WSlider" min="5" max="100" step="0.1" value="45" oninput="onA4WidthChange()">
-
-            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #333; margin-top: 6px;">
-                <span>Length (L) ↕️</span><span id="a4Htxt" style="color:#1976d2;">35%</span>
-            </div>
-            <input type="range" id="a4HSlider" min="5" max="100" step="0.1" value="35" oninput="onA4HeightChange()">
-        </div>
-
-        <div style="margin-top:15px; width:100%; display: flex; gap: 8px;">
-            <button type="button" onclick="cancelA4Adjust()" style="flex:1; padding:12px; background:#dc3545; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 14px; cursor: pointer;">❌ Cancel</button>
-            <button type="button" onclick="rotateA4Image()" style="flex:1; padding:12px; background:#17a2b8; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 14px; cursor: pointer;">↻ Rotate</button>
-            <button id="confirmA4Btn" onclick="confirmA4Adjust()" style="flex:1.2; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold; font-size: 14px; cursor: pointer;">✅ Save</button>
-        </div>
-    </div>
-</div>
-
 <div class="card">
-    <h2>Upload Document</h2>
+    <h2>ID Card Print Layout Engine</h2>
     <p id="cvStatus" style="text-align:center; font-size:12px; color:#e65100; margin:-5px 0 10px 0;">⏳ Loading image enhancer...</p>
 
-    <input type="text" id="name" class="input-group" placeholder="Customer Name (Optional)">
-    <input type="tel" id="mobile" class="input-group" placeholder="Mobile Number (Optional)">
+    <input type="text" id="name" placeholder="Customer Name (Optional)">
+    <input type="tel" id="mobile" placeholder="Mobile Number (Optional)">
+
+    <div class="input-group">
+        <label>Number of Pages / Copies to Print:</label>
+        <input type="number" id="copies" value="1" min="1" oninput="calculatePrice()" required>
+    </div>
+
+    <div class="input-group">
+        <label>Print Type Mode:</label>
+        <select id="type" onchange="calculatePrice(); applyLiveGrayscalePreviewFilter();">
+            <option value="5" selected>Black & White (₹5 / copy)</option>
+            <option value="10">Color (₹10 / copy)</option>
+        </select>
+    </div>
+
+    <div id="totalPrice" style="color: #1976d2; font-weight: bold; text-align: center; margin-bottom: 20px; font-size: 18px;">Total Price: ₹5</div>
+
+    <hr>
+
+    <h3>Front Side</h3>
+    <p class="instructions">Drag corners to crop. Use 2 fingers to pinch-zoom / pan.</p>
+    <p id="frontDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
+    <input type="file" id="frontFile" accept="image/*">
     
-    <div class="input-group" style="background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ffcc80;">
-        <label style="color: #e65100; font-size: 15px;">1. Select Print Type First:</label>
-        <select id="type" onchange="calculate(); applyPreviewFilter();" style="border: 2px solid #ff9800; font-weight: bold;">
-            <option value="5">Black & White (₹5 / page)</option>
-            <option value="10">Color (₹10 / page)</option>
-        </select>
-    </div>
-
-    <div class="input-group">
-        <label>2. Select File(s) (Multiple PDFs or Images):</label>
-        <input type="file" id="file" accept="image/*,application/pdf" multiple onchange="handleFileSelectionChange()" required>
-    </div>
-
-    <div class="input-group" id="docTypeGroup" style="display:none; background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #bbdefb;">
-        <label style="color: #1565c0;">Image Print Mode:</label>
-        <select id="docType" style="font-weight: bold; color: #111;">
-            <option value="full" selected>A4 Full Page (Auto Stretch / Marksheet)</option>
-            <option value="fit">A4 Custom Adjust (Ration Card / ID Popup)</option>
-        </select>
-    </div>
-
-    <div id="pdfUI" style="display:none;">
-        <div class="preview-wrapper" id="previewWrapperFrame">
-            <div class="preview-box" id="docPreview">
-                <span style="margin-top: 150px; color:#777;">Loading PDF Preview...</span>
-            </div>
-        </div>
-        <div class="input-group">
-            <label>Pages to Print (Across all PDFs):</label>
-            <input type="text" id="pages" placeholder="e.g., All, 1, 3-5" value="All" oninput="calculate(); previewDocument();">
-        </div>
-        <div class="input-group">
-            <label>Pages Per Sheet (Layout):</label>
-            <select id="layout_mode" onchange="calculate(); updateLivePreviewGrid();">
-                <option value="1">1 Page Per Sheet (Standard)</option>
-                <option value="2">2 Pages Per Sheet</option>
-                <option value="4">4 Pages Per Sheet</option>
-            </select>
+    <div class="canvas-container" id="frontContainer">
+        <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
+        <canvas id="frontCanvas" width="400" height="260"></canvas>
+        <div class="fullscreen-controls">
+            <button type="button" style="background: #28a745;" onclick="rotateImage('front')">↻ Rotate</button>
+            <button type="button" style="background: #1976d2;" onclick="saveSide('front')">Save Front</button>
         </div>
     </div>
-
-    <div id="imageUI" style="display: none;">
-        <h4 id="imageStatus" style="text-align: center; color: #1976d2; margin-bottom: 5px;"></h4>
-        
-        <div id="cropProgressWrapper" style="width: 100%; max-width: 400px; height: 6px; background: #e0e0e0; border-radius: 4px; margin: 0 auto 15px auto; overflow: hidden; display: none;">
-            <div id="cropProgressBar" style="width: 0%; height: 100%; background: #28a745; transition: width 0.3s ease;"></div>
-        </div>
-        
-        <div class="input-group" style="background: #e3f2fd; padding: 10px; border-radius: 6px; border: 1px solid #90caf9;">
-            <label style="color: #1565c0;">Auto Clean Filter (for B&amp;W documents):</label>
-            <select id="autoCleanToggle">
-                <option value="on" selected>On (Recommended)</option>
-                <option value="off">Off - No Filter</option>
-            </select>
-        </div>
-
-        <div id="cropAreaWrapper">
-            <p style="font-size: 13px; color: #555; text-align: center;">Drag corners to crop your document perfectly.</p>
-            <p id="cropDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
-            <div class="canvas-container" id="cropContainer">
-                <canvas id="cropCanvas"></canvas>
-            </div>
-            
-            <div class="crop-controls">
-                <button type="button" style="background:#17a2b8;" onclick="selectFullPage()">🔲 Full Page</button>
-                <button type="button" style="background:#28a745;" onclick="rotateImage()">↻ Rotate</button>
-                <button type="button" style="background:#6c757d;" onclick="resetZoom()">Reset Zoom</button>
-                <button type="button" style="background:#1976d2;" id="saveCropBtn" onclick="saveCropAndNext()">Save Crop</button>
-            </div>
-        </div>
-        
-        <div id="cropPreviewContainer" style="text-align: center; display: none; margin-bottom: 15px;">
-            <p style="font-size: 14px; color: #28a745; font-weight: bold; margin-top: 5px;">✓ All Images Cropped & Ready</p>
-            <div id="thumbnailGallery" style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; margin-top: 10px; border: 1px solid #ddd; border-radius: 6px; background: #fdfdfd; align-items: center;">
-            </div>
-        </div>
+    
+    <div class="controls">
+        <button type="button" onclick="rotateImage('front')">↻ Rotate 90°</button>
+        <button type="button" onclick="goFullscreen('front')">⛶ Edit Fullscreen</button>
+        <button type="button" onclick="resetZoom('front')">Reset Zoom</button>
+        <button type="button" onclick="saveSide('front')">Save Front</button>
     </div>
 
-    <div class="input-group">
-        <label>Number of Copies:</label>
-        <input type="number" id="copies" value="1" min="1" oninput="calculate()">
+    <!-- 🔥 FRONT PREVIEW WITH DELETE (CROSS) BUTTON -->
+    <div class="side-preview" id="frontPreviewContainer">
+        <button type="button" onclick="clearSide('front')" style="position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 10; display: flex; align-items: center; justify-content: center; font-size: 14px;" title="Remove Front Image">✕</button>
+        <img id="frontPreviewImg" src="" alt="Front Preview">
+        <p id="frontPreviewStatus">✓ Clean Front Image Saved</p>
     </div>
 
-    <h3 id="total" style="text-align:center;">Total: ₹5</h3>
-    <button id="submitBtn" onclick="submitOrder()">Submit Order</button>
+    <hr>
+
+    <h3>Back Side </h3>
+    <p class="instructions">Crop Accurate for Best Result</p>
+    <p id="backDetectStatus" style="text-align:center; font-size:12px; color:#888; margin:-3px 0 5px 0; min-height:15px;"></p>
+    <input type="file" id="backFile" accept="image/*">
+    
+    <div class="canvas-container" id="backContainer">
+        <button type="button" class="exit-fullscreen-btn" onclick="closeFullscreen()">✕ Exit Fullscreen</button>
+        <canvas id="backCanvas" width="400" height="260"></canvas>
+        <div class="fullscreen-controls">
+            <button type="button" style="background: #28a745;" onclick="rotateImage('back')">↻ Rotate</button>
+            <button type="button" style="background: #1976d2;" onclick="saveSide('back')">Save Back</button>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button type="button" onclick="rotateImage('back')">↻ Rotate 90°</button>
+        <button type="button" onclick="goFullscreen('back')">⛶ Edit Fullscreen</button>
+        <button type="button" onclick="resetZoom('back')">Reset Zoom</button>
+        <button type="button" onclick="saveSide('back')">Save Back</button>
+    </div>
+
+    <!-- 🔥 BACK PREVIEW WITH DELETE (CROSS) BUTTON -->
+    <div class="side-preview" id="backPreviewContainer">
+        <button type="button" onclick="clearSide('back')" style="position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 10; display: flex; align-items: center; justify-content: center; font-size: 14px;" title="Remove Back Image">✕</button>
+        <img id="backPreviewImg" src="" alt="Back Preview">
+        <p id="backPreviewStatus">✓ Clean Back Image Saved</p>
+    </div>
+
+    <br>
+    <button id="submitBtn" onclick="submitID()" style="background:#1976d2; width: 100%; padding: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">Submit Processing Order</button>
 </div>
 
 <script>
-    document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-    document.onkeydown = function(e) {
-        if (e.keyCode === 123) return false;
-        if (e.ctrlKey && e.shiftKey && e.keyCode === 73) return false;
-        if (e.ctrlKey && e.shiftKey && e.keyCode === 74) return false;
-        if (e.ctrlKey && e.shiftKey && e.keyCode === 67) return false;
-        if (e.ctrlKey && e.keyCode === 85) return false;
-    };
-
-const PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-(async function initMobilePdfWorker() {
-    try {
-        const response = await fetch(PDF_WORKER_URL);
-        const blob = await response.blob();
-        pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-    } catch (e) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
-    }
-})();
-
 const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, window.SITE_CONFIG.SUPABASE_KEY);
 
 (function pollCvReady() {
@@ -211,14 +258,124 @@ const client = window.supabase.createClient(window.SITE_CONFIG.SUPABASE_URL, win
     setTimeout(pollCvReady, 300);
 })();
 
-let uploadedPdfFilesList = [];
-let uploadedImagesList = [];
-let totalDetectedPDFPages = 0;
-let activeRenderTaskId = 0; 
-let currentImageIndex = 0;
-let processedA4Images = []; 
+let frontDataUrl = null;
+let backDataUrl = null;
 
-const cropEngine = { canvas: document.getElementById('cropCanvas'), ctx: document.getElementById('cropCanvas').getContext('2d'), img: null, corners: [], activeCorner: -1, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 };
+const engine = {
+    front: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 },
+    back: { img: null, corners: [], activeCorner: -1, canvas: null, ctx: null, rotation: 0, originalSrc: "", zoom: 1, offsetX: 0, offsetY: 0, isPanning: false, lastTouchDist: 0, lastTouchX: 0, lastTouchY: 0 }
+};
+
+engine.front.canvas = document.getElementById('frontCanvas');
+engine.front.ctx = engine.front.canvas.getContext('2d');
+engine.back.canvas = document.getElementById('backCanvas');
+engine.back.ctx = engine.back.canvas.getContext('2d');
+
+document.getElementById('frontFile').addEventListener('change', (e) => handleFileSelect(e, 'front'));
+document.getElementById('backFile').addEventListener('change', (e) => handleFileSelect(e, 'back'));
+
+function handleFileSelect(e, side) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const rawImg = new Image();
+        rawImg.onload = function() {
+            const maxDimension = 1200;
+            let targetWidth = rawImg.width;
+            let targetHeight = rawImg.height;
+
+            if (rawImg.width > maxDimension || rawImg.height > maxDimension) {
+                if (rawImg.width > rawImg.height) {
+                    targetWidth = maxDimension;
+                    targetHeight = Math.round((rawImg.height * maxDimension) / rawImg.width);
+                } else {
+                    targetHeight = maxDimension;
+                    targetWidth = Math.round((rawImg.width * maxDimension) / rawImg.height);
+                }
+            }
+
+            const optimizationCanvas = document.createElement('canvas');
+            optimizationCanvas.width = targetWidth;
+            optimizationCanvas.height = targetHeight;
+            const optimizationCtx = optimizationCanvas.getContext('2d');
+            optimizationCtx.drawImage(rawImg, 0, 0, targetWidth, targetHeight);
+
+            const optimizedDataUrl = optimizationCanvas.toDataURL("image/jpeg", 0.92);
+            
+            engine[side].originalSrc = optimizedDataUrl;
+            engine[side].rotation = 0; 
+            resetZoom(side);
+            loadImageData(side, optimizedDataUrl);
+        };
+        rawImg.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function loadImageData(side, src) {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function() {
+        engine[side].img = img;
+        
+        const newHeight = (img.height * 400) / img.width;
+        engine[side].canvas.height = newHeight;
+        
+        const w = engine[side].canvas.width;
+        const h = engine[side].canvas.height;
+        engine[side].corners = [{ x: 30, y: 30 }, { x: w - 30, y: 30 }, { x: w - 30, y: h - 30 }, { x: 30, y: h - 30 }];
+        draw(side);
+
+        tryAutoDetectCorners(side);
+    };
+    img.src = src;
+}
+
+// 🔥 NEW FUNCTION: Clear Saved Preview (Front or Back)
+function clearSide(side) {
+    if (side === 'front') {
+        frontDataUrl = null;
+        document.getElementById('frontPreviewContainer').style.display = 'none';
+        document.getElementById('frontFile').value = ''; // Reset file input
+    } else {
+        backDataUrl = null;
+        document.getElementById('backPreviewContainer').style.display = 'none';
+        document.getElementById('backFile').value = ''; // Reset file input
+    }
+}
+
+function tryAutoDetectCorners(side, attempt) {
+    attempt = attempt || 0;
+    const s = engine[side];
+    const statusEl = document.getElementById(`${side}DetectStatus`);
+
+    if (typeof cv === 'undefined' || !cv.Mat) {
+        if (statusEl) statusEl.textContent = '⏳ Waiting for image enhancer to load...';
+        if (attempt < 20) setTimeout(() => tryAutoDetectCorners(side, attempt + 1), 300);
+        else if (statusEl) statusEl.textContent = '';
+        return;
+    }
+
+    if (!s.img) return;
+
+    if (statusEl) statusEl.textContent = '🔍 Detecting card edges...';
+
+    setTimeout(() => {
+        const detected = autoDetectCorners(side);
+        if (detected) {
+            draw(side);
+            if (statusEl) {
+                statusEl.textContent = '✓ Card edges auto-detected — adjust if needed';
+                statusEl.style.color = '#28a745';
+            }
+        } else if (statusEl) {
+            statusEl.textContent = 'ℹ️ Could not auto-detect — please drag corners manually';
+            statusEl.style.color = '#e65100';
+        }
+    }, 30);
+}
 
 function orderCornersClockwise(pts) {
     const sums = pts.map(p => p.x + p.y);
@@ -243,19 +400,37 @@ function rotatedRectCorners(rect) {
     }));
 }
 
-function autoDetectDocumentCorners(canvasEl, imgEl) {
-    const w = canvasEl.width;
-    const h = canvasEl.height;
+function autoDetectCorners(side) {
+    const s = engine[side];
+    const w = s.canvas.width;
+    const h = s.canvas.height;
     const canvasArea = w * h;
+    const TARGET_RATIO = 856 / 540;
 
     let src, gray, blurred, kernel;
     let bestQuad = null;
     let bestScore = -1;
 
-    const minArea = canvasArea * 0.15;
+    function quadSideLengths(pts) {
+        const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+        return [d(pts[0], pts[1]), d(pts[1], pts[2]), d(pts[2], pts[3]), d(pts[3], pts[0])];
+    }
+
+    function evaluateCandidate(pts) {
+        const ordered = orderCornersClockwise(pts);
+        const sides = quadSideLengths(ordered);
+        const wAvg = (sides[0] + sides[2]) / 2;
+        const hAvg = (sides[1] + sides[3]) / 2;
+        const ratio = Math.max(wAvg, hAvg) / Math.max(1, Math.min(wAvg, hAvg));
+        const ratioError = Math.abs(ratio - TARGET_RATIO) / TARGET_RATIO;
+        const area = wAvg * hAvg;
+        return { ordered, ratioError, area };
+    }
+
+    const minArea = canvasArea * 0.02;
     const maxArea = canvasArea * 0.95;
 
-    function scanContours(binaryMat) {
+    function scanContours(binaryMat, label) {
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
         cv.findContours(binaryMat, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
@@ -293,16 +468,16 @@ function autoDetectDocumentCorners(canvasEl, imgEl) {
 
                 const rect = cv.boundingRect(cnt);
                 const rectangularity = area / Math.max(1, (rect.width * rect.height));
+                const { ordered, ratioError } = evaluateCandidate(quadPts);
 
-                if (rectangularity > 0.6) {
-                    const ordered = orderCornersClockwise(quadPts);
-                    const score = area * rectangularity;
+                if (ratioError < 0.6 && rectangularity > 0.5) {
+                    const score = area * rectangularity * (1 - ratioError);
                     if (score > bestScore) {
                         bestQuad = ordered;
                         bestScore = score;
                     }
                 }
-            } catch (err) {
+            } catch (candidateErr) {
             } finally {
                 if (hull) hull.delete();
                 cnt.delete();
@@ -316,7 +491,7 @@ function autoDetectDocumentCorners(canvasEl, imgEl) {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = w;
         tempCanvas.height = h;
-        tempCanvas.getContext('2d').drawImage(imgEl, 0, 0, w, h);
+        tempCanvas.getContext('2d').drawImage(s.img, 0, 0, w, h);
 
         src = cv.imread(tempCanvas);
         gray = new cv.Mat();
@@ -328,19 +503,36 @@ function autoDetectDocumentCorners(canvasEl, imgEl) {
         kernel = cv.Mat.ones(5, 5, cv.CV_8U);
         const meanVal = cv.mean(blurred)[0];
 
-        const multiplierSets = [[0.66, 1.33], [0.4, 1.6]];
+        const multiplierSets = [[0.66, 1.33], [0.4, 1.6], [0.2, 2.0]];
         for (const [loMult, hiMult] of multiplierSets) {
+            const lower = Math.max(0, loMult * meanVal);
+            const upper = Math.min(255, hiMult * meanVal);
             let edged = new cv.Mat();
             let dilated = new cv.Mat();
-            cv.Canny(blurred, edged, Math.max(0, loMult * meanVal), Math.min(255, hiMult * meanVal));
+            cv.Canny(blurred, edged, lower, upper);
             cv.dilate(edged, dilated, kernel, new cv.Point(-1, -1), 2);
-            scanContours(dilated);
+            scanContours(dilated, `canny(${loMult},${hiMult})`);
             edged.delete();
             dilated.delete();
         }
-        return bestQuad;
+
+        let otsu = new cv.Mat();
+        cv.threshold(blurred, otsu, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+        scanContours(otsu, "otsu-bright");
+        otsu.delete();
+
+        let otsuInv = new cv.Mat();
+        cv.threshold(blurred, otsuInv, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+        scanContours(otsuInv, "otsu-dark");
+        otsuInv.delete();
+
+        if (bestQuad) {
+            s.corners = bestQuad;
+            return true;
+        }
+        return false;
     } catch (e) {
-        return null;
+        return false;
     } finally {
         [src, gray, blurred, kernel].forEach(m => {
             if (m && typeof m.delete === 'function') m.delete();
@@ -348,797 +540,297 @@ function autoDetectDocumentCorners(canvasEl, imgEl) {
     }
 }
 
-async function handleFileSelectionChange(){
-    const files = document.getElementById("file").files;
-    if (!files || files.length === 0) return;
-
-    let maxSizeInBytes = 20 * 1024 * 1024;
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].size > maxSizeInBytes) {
-            alert(`⚠️ Error: "${files[i].name}" bahut badi file hai! Kripya 20MB se choti file upload karein.`);
-            document.getElementById("file").value = ""; 
-            return;
-        }
-    }
-
-    document.getElementById("type").disabled = true;
-
-    uploadedImagesList = [];
-    uploadedPdfFilesList = [];
-    processedA4Images = [];
-    currentImageIndex = 0;
-    totalDetectedPDFPages = 0;
-
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith("image/")) {
-            uploadedImagesList.push(files[i]);
-        } else if (files[i].type === "application/pdf") {
-            uploadedPdfFilesList.push(files[i]); 
-        }
-    }
-
-    if (uploadedPdfFilesList.length > 0) {
-        try {
-            for (let pdf of uploadedPdfFilesList) {
-                const arrayBuffer = await pdf.arrayBuffer();
-                const uint8Data = new Uint8Array(arrayBuffer);
-                const srcPdf = await PDFLib.PDFDocument.load(uint8Data);
-                totalDetectedPDFPages += srcPdf.getPageCount();
-            }
-        } catch (err) {
-            console.error("PDF Parsing Error:", err);
-            alert("⚠️ Error: PDF file load nahi ho saki. File corrupted ho sakti hai.");
-            document.getElementById("file").value = ""; 
-            return;
-        }
-    }
-
-    if (uploadedImagesList.length > 0) {
-        document.getElementById("pdfUI").style.display = "none";
-        document.getElementById("imageUI").style.display = "block";
-        document.getElementById("docTypeGroup").style.display = "block"; 
-        document.getElementById("cropPreviewContainer").style.display = "none";
-        document.getElementById("cropAreaWrapper").style.display = "block";
-        
-        loadCurrentImageForCrop();
-        calculate();
-    } else if (uploadedPdfFilesList.length > 0) {
-        document.getElementById("pdfUI").style.display = "block";
-        document.getElementById("imageUI").style.display = "none";
-        document.getElementById("docTypeGroup").style.display = "none";
-        
-        await previewDocument();
-        calculate();
-    }
+function resetZoom(side) {
+    engine[side].zoom = 1;
+    engine[side].offsetX = 0;
+    engine[side].offsetY = 0;
+    draw(side);
 }
 
-function loadCurrentImageForCrop() {
-    const progressWrapper = document.getElementById("cropProgressWrapper");
-    const progressBar = document.getElementById("cropProgressBar");
+function calculatePrice() {
+    let copies = parseInt(document.getElementById("copies").value) || 1;
+    if (copies < 1) copies = 1;
+    let baseRate = parseInt(document.getElementById("type").value); 
+    document.getElementById("totalPrice").innerText = "Total Price: ₹" + (copies * baseRate);
+}
+
+function applyLiveGrayscalePreviewFilter() {
+    const frontImg = document.getElementById("frontPreviewImg");
+    const backImg = document.getElementById("backPreviewImg");
+    const isBw = document.getElementById("type").value == 5;
     
-    if (uploadedImagesList.length > 1) {
-        progressWrapper.style.display = "block";
-        let progressPercent = (currentImageIndex / uploadedImagesList.length) * 100;
-        progressBar.style.width = progressPercent + "%";
+    if (isBw) {
+        if(frontImg) frontImg.classList.add("force-grayscale");
+        if(backImg) backImg.classList.add("force-grayscale");
     } else {
-        progressWrapper.style.display = "none";
+        if(frontImg) frontImg.classList.remove("force-grayscale");
+        if(backImg) backImg.classList.remove("force-grayscale");
     }
-
-    if (currentImageIndex >= uploadedImagesList.length) {
-        document.getElementById("cropAreaWrapper").style.display = "none";
-        progressWrapper.style.display = "none"; 
-        
-        if (uploadedPdfFilesList.length > 0) {
-            document.getElementById("imageUI").style.display = "none";
-            document.getElementById("pdfUI").style.display = "block";
-            document.getElementById("docTypeGroup").style.display = "none";
-            previewDocument();
-        } else {
-            document.getElementById("cropPreviewContainer").style.display = "block";
-            document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
-            
-            const gallery = document.getElementById("thumbnailGallery");
-            gallery.innerHTML = ""; 
-            
-            processedA4Images.forEach((dataUrl, index) => {
-                const imgWrap = document.createElement("div");
-                imgWrap.style.flex = "0 0 auto";
-                
-                const img = document.createElement("img");
-                img.src = dataUrl;
-                img.style.height = "120px"; 
-                img.style.border = "1px solid #ccc";
-                img.style.borderRadius = "4px";
-                img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-                
-                const label = document.createElement("div");
-                label.innerText = `Page ${index + 1}`;
-                label.style.fontSize = "11px";
-                label.style.color = "#555";
-                label.style.marginTop = "4px";
-                
-                imgWrap.appendChild(img);
-                imgWrap.appendChild(label);
-                gallery.appendChild(imgWrap);
-            });
-        }
-        return;
-    }
-
-    document.getElementById("imageStatus").innerText = `Cropping Image ${currentImageIndex + 1} of ${uploadedImagesList.length}`;
-    
-    const btn = document.getElementById("saveCropBtn");
-    btn.disabled = false;
-    btn.style.opacity = "1";
-    
-    if (currentImageIndex === uploadedImagesList.length - 1) {
-        btn.innerText = uploadedPdfFilesList.length > 0 ? "Save Crop & Proceed to PDFs" : "Save Crop & Finish";
-    } else {
-        btn.innerText = `Save Crop & Next (${currentImageIndex + 1}/${uploadedImagesList.length})`;
-    }
-
-    const detectStatusEl = document.getElementById("cropDetectStatus");
-    if (detectStatusEl) detectStatusEl.textContent = '';
-
-    const reader = new FileReader();
-    reader.onload = e => {
-        const img = new Image();
-        img.onload = () => {
-            cropEngine.img = img;
-            
-            const w = 400;
-            const h = (img.height * 400) / img.width;
-            cropEngine.canvas.width = w;
-            cropEngine.canvas.height = h;
-            
-            let defaultCorners = [{x:30, y:30}, {x:w-30, y:30}, {x:w-30, y:h-30}, {x:30, y:h-30}];
-            cropEngine.corners = defaultCorners;
-
-            if (typeof cv !== 'undefined' && typeof cv.imread === 'function') {
-                if (detectStatusEl) detectStatusEl.textContent = '🔍 Detecting document edges...';
-                try {
-                    const detectedQuad = autoDetectDocumentCorners(cropEngine.canvas, img);
-                    if (detectedQuad) {
-                        cropEngine.corners = detectedQuad;
-                        if (detectStatusEl) {
-                            detectStatusEl.textContent = '✓ Document edges auto-detected';
-                            detectStatusEl.style.color = '#28a745';
-                        }
-                    }
-                } catch (err) {
-                }
-            }
-
-            cropEngine.rotation = 0; 
-            cropEngine.originalSrc = e.target.result;
-            resetZoom();
-            drawCrop();
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
 }
 
-function updateLivePreviewGrid() {
-    const layoutMode = document.getElementById("layout_mode").value;
-    const previewBox = document.getElementById("docPreview");
-    previewBox.className = "preview-box"; 
-    if (layoutMode === "2") previewBox.classList.add("layout-grid-2");
-    if (layoutMode === "4") previewBox.classList.add("layout-grid-4");
-}
-
-function parsePageSelection(pageInput) {
-    let clean = pageInput.replace(/\s+/g, '').toLowerCase();
-    if (clean === "all" || clean === "") return null;
-    let selected = [];
-    clean.split(",").forEach(part => {
-        if (part.includes("-")) { let [s, e] = part.split("-"); for (let i = parseInt(s); i <= parseInt(e); i++) selected.push(i); } 
-        else selected.push(parseInt(part));
-    });
-    return selected;
-}
-
-async function previewDocument() {
-    const currentTaskId = ++activeRenderTaskId; 
-    const previewContainer = document.getElementById("docPreview");
-    let pageInput = document.getElementById("pages").value.trim();
-
+async function goFullscreen(side) {
+    const container = document.getElementById(`${side}Container`);
+    if (!engine[side].img) { alert("Please upload an image first."); return; }
     try {
-        let allPdfjsDocs = [];
-        for(let pdfFile of uploadedPdfFilesList) {
-            const arrayBuffer = await pdfFile.arrayBuffer();
-            const uint8Data = new Uint8Array(arrayBuffer);
-            const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
-            allPdfjsDocs.push(pdfjsDoc);
-        }
-        
-        if (currentTaskId !== activeRenderTaskId) return;
+        if (container.requestFullscreen) await container.requestFullscreen();
+        else if (container.webkitRequestFullscreen) await container.webkitRequestFullscreen();
+    } catch(err) { console.warn(err); }
+    setTimeout(() => draw(side), 100);
+}
 
-        let targetPagesList = parsePageSelection(pageInput);
-        let pagesToRender = (targetPagesList === null || targetPagesList.length === 0 || pageInput.toLowerCase() === "all") 
-            ? Array.from({length: totalDetectedPDFPages}, (_, i) => i + 1) 
-            : targetPagesList.filter(p => p >= 1 && p <= totalDetectedPDFPages);
-
-        previewContainer.innerHTML = pagesToRender.length === 0 ? "<span>Invalid page selection</span>" : ""; 
-
-        let globalPageCounter = 1;
-
-        for (let docIdx = 0; docIdx < allPdfjsDocs.length; docIdx++) {
-            const pdf = allPdfjsDocs[docIdx];
-            
-            for(let localPageNum = 1; localPageNum <= pdf.numPages; localPageNum++) {
-                if (currentTaskId !== activeRenderTaskId) return;
-
-                if (pagesToRender.includes(globalPageCounter)) {
-                    const page = await pdf.getPage(localPageNum);
-                    const pageWrapper = document.createElement('div');
-                    pageWrapper.className = 'page-render-container';
-
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    
-                    const initialViewport = page.getViewport({ scale: 1.0 });
-                    const renderScale = Math.min(2.0, (window.innerWidth || 380) / initialViewport.width);
-                    const viewport = page.getViewport({ scale: renderScale });
-
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    pageWrapper.appendChild(canvas);
-
-                    const pageLabel = document.createElement('div');
-                    pageLabel.innerText = `Page ${globalPageCounter} (from PDF ${docIdx + 1})`;
-                    pageLabel.style.fontSize = "13px";
-                    pageLabel.style.color = "#555";
-                    pageLabel.style.fontWeight = "bold";
-                    pageLabel.style.marginTop = "8px";
-                    pageWrapper.appendChild(pageLabel);
-
-                    previewContainer.appendChild(pageWrapper);
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-                }
-                globalPageCounter++;
-            }
-        }
-    } catch (err) { 
-        console.error("PDF Preview Error: ", err); 
-        previewContainer.innerHTML = "<span style='color:red;'>⚠️ Mobile preview render error. Order can still be submitted safely.</span>";
+function closeFullscreen() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
     }
-    updateLivePreviewGrid();
-    applyPreviewFilter();
 }
 
-function selectFullPage() {
-    if (!cropEngine.img) return;
-    const w = cropEngine.canvas.width;
-    const h = cropEngine.canvas.height;
-    cropEngine.corners = [
-        { x: 0, y: 0 },
-        { x: w, y: 0 },
-        { x: w, y: h },
-        { x: 0, y: h }
-    ];
-    resetZoom();
-    drawCrop();
-}
-
-function rotateImage() {
-    if (!cropEngine.originalSrc) return;
-    cropEngine.rotation = (cropEngine.rotation + 90) % 360;
+function rotateImage(side) {
+    const s = engine[side];
+    if (!s.originalSrc) { alert("Upload image first."); return; }
+    
+    s.rotation = (s.rotation + 90) % 360;
     const tempImg = new Image();
+    tempImg.crossOrigin = "anonymous";
     tempImg.onload = function() {
         const internalCanvas = document.createElement('canvas');
-        if (cropEngine.rotation % 180 !== 0) {
-            internalCanvas.width = tempImg.height; internalCanvas.height = tempImg.width;
+        if (s.rotation === 90 || s.rotation === 270) {
+            internalCanvas.width = tempImg.height;
+            internalCanvas.height = tempImg.width;
         } else {
-            internalCanvas.width = tempImg.width; internalCanvas.height = tempImg.height;
+            internalCanvas.width = tempImg.width;
+            internalCanvas.height = tempImg.height;
         }
-        const ctx = internalCanvas.getContext('2d');
-        ctx.translate(internalCanvas.width / 2, internalCanvas.height / 2);
-        ctx.rotate((cropEngine.rotation * Math.PI) / 180);
-        ctx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+        
+        const internalCtx = internalCanvas.getContext('2d');
+        internalCtx.translate(internalCanvas.width / 2, internalCanvas.height / 2);
+        internalCtx.rotate((s.rotation * Math.PI) / 180);
+        internalCtx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
         
         const rotatedImg = new Image();
+        rotatedImg.crossOrigin = "anonymous";
         rotatedImg.onload = function() {
-            cropEngine.canvas.height = (rotatedImg.height * 400) / rotatedImg.width;
-            cropEngine.img = rotatedImg;
-            cropEngine.corners = [{x:30, y:30}, {x:400-30, y:30}, {x:400-30, y:cropEngine.canvas.height-30}, {x:30, y:cropEngine.canvas.height-30}];
-            drawCrop();
+            s.img = rotatedImg;
+            
+            const newHeight = (rotatedImg.height * 400) / rotatedImg.width;
+            s.canvas.height = newHeight;
+            
+            const w = s.canvas.width;
+            const h = s.canvas.height;
+            s.corners = [{ x: 30, y: 30 }, { x: w - 30, y: 30 }, { x: w - 30, y: h - 30 }, { x: 30, y: h - 30 }];
+            
+            draw(side);
+            tryAutoDetectCorners(side);
         };
         rotatedImg.src = internalCanvas.toDataURL("image/jpeg");
     };
-    tempImg.src = cropEngine.originalSrc;
+    tempImg.src = s.originalSrc;
 }
 
-function resetZoom() { cropEngine.zoom = 1; cropEngine.offsetX = 0; cropEngine.offsetY = 0; drawCrop(); }
-
-function drawCrop() {
-    const s = cropEngine; if (!s.img) return;
+function draw(side) {
+    const s = engine[side];
+    if (!s.img) return;
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
-    s.ctx.save(); s.ctx.translate(s.offsetX, s.offsetY); s.ctx.scale(s.zoom, s.zoom);
-    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height); s.ctx.restore();
-    s.ctx.strokeStyle = '#28a745'; s.ctx.lineWidth = 2;
-    s.ctx.beginPath(); s.ctx.moveTo(s.corners[0].x, s.corners[0].y);
+    s.ctx.save();
+    s.ctx.translate(s.offsetX, s.offsetY);
+    s.ctx.scale(s.zoom, s.zoom);
+    s.ctx.drawImage(s.img, 0, 0, s.canvas.width, s.canvas.height);
+    s.ctx.restore();
+    s.ctx.strokeStyle = '#28a745';
+    s.ctx.lineWidth = 2;
+    s.ctx.beginPath();
+    s.ctx.moveTo(s.corners[0].x, s.corners[0].y);
     for (let i = 1; i < 4; i++) s.ctx.lineTo(s.corners[i].x, s.corners[i].y);
-    s.ctx.closePath(); s.ctx.stroke();
-    s.corners.forEach(c => { s.ctx.fillStyle = '#28a745'; s.ctx.beginPath(); s.ctx.arc(c.x, c.y, 14, 0, Math.PI * 2); s.ctx.fill(); s.ctx.strokeStyle = '#fff'; s.ctx.lineWidth = 3; s.ctx.stroke(); });
-}
-
-function getPos(e) { const r=cropEngine.canvas.getBoundingClientRect(); return { x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*(cropEngine.canvas.width/r.width), y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*(cropEngine.canvas.height/r.height) }; }
-cropEngine.canvas.addEventListener('touchstart', e=>{ const s=cropEngine; if(e.touches.length===2){ s.activeCorner=-1; s.isPanning=false; s.lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); s.lastTouchX=(e.touches[0].clientX+e.touches[1].clientX)/2; s.lastTouchY=(e.touches[0].clientY+e.touches[1].clientY)/2; } else if(e.touches.length===1){ const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY;} } }, {passive:false});
-cropEngine.canvas.addEventListener('touchmove', e=>{ const s=cropEngine; e.preventDefault(); if(e.touches.length===2){ const cDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); const cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2; let nz=s.zoom*(cDist/s.lastTouchDist); nz=Math.max(1,Math.min(8,nz)); const r=s.canvas.getBoundingClientRect(); const rx=(cx-r.left)*(s.canvas.width/r.width), ry=(cy-r.top)*(s.canvas.height/r.height); s.offsetX=rx-(rx-s.offsetX)*(nz/s.zoom); s.offsetY=ry-(ry-s.offsetY)*(nz/s.zoom); s.zoom=nz; s.offsetX+=(cx-s.lastTouchX); s.offsetY+=(cy-s.lastTouchY); s.lastTouchDist=cDist; s.lastTouchX=cx; s.lastTouchY=cy; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); } else if(e.touches.length===1){ if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.touches[0].clientX-s.lastTouchX); s.offsetY+=(e.touches[0].clientY-s.lastTouchY); s.lastTouchX=e.touches[0].clientX; s.lastTouchY=e.touches[0].clientY; drawCrop(); } } }, {passive:false});
-window.addEventListener('touchend', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('mousedown', e=>{ const s=cropEngine; const p=getPos(e); s.activeCorner=s.corners.findIndex(c=>Math.hypot(c.x-p.x,c.y-p.y)<45); if(s.activeCorner===-1 && s.zoom>1){s.isPanning=true; s.lastTouchX=e.clientX; s.lastTouchY=e.clientY;} });
-cropEngine.canvas.addEventListener('mousemove', e=>{ const s=cropEngine; if(s.activeCorner!==-1){ const p=getPos(e); s.corners[s.activeCorner]={x:Math.max(0,Math.min(s.canvas.width,p.x)), y:Math.max(0,Math.min(s.canvas.height,p.y))}; drawCrop(); }else if(s.isPanning){ s.offsetX+=(e.clientX-s.lastTouchX); s.offsetY+=(e.clientY-s.lastTouchY); s.lastTouchX=e.clientX; s.lastTouchY=e.clientY; drawCrop(); } });
-window.addEventListener('mouseup', ()=>{cropEngine.activeCorner=-1; cropEngine.isPanning=false;});
-cropEngine.canvas.addEventListener('wheel', e=>{ e.preventDefault(); const s=cropEngine; const m=getPos(e); let nz=e.deltaY<0?s.zoom*1.1:s.zoom/1.1; nz=Math.max(1,Math.min(8,nz)); s.offsetX=m.x-(m.x-s.offsetX)*(nz/s.zoom); s.offsetY=m.y-(m.y-s.offsetY)*(nz/s.zoom); s.zoom=nz; if(s.zoom===1){s.offsetX=0;s.offsetY=0;} drawCrop(); }, {passive:false});
-
-
-// 🔥 A4 POPUP VARIABLES & SMART RATIO LOGIC
-let a4AdjImg = null;
-const a4CanvasW = 1600;
-const a4CanvasH = 2260;
-let a4AdjState = { x: 0, y: 0, w: 0, h: 0 };
-let a4Resolver = null;
-let isA4Dragging = false;
-let a4DragStartX = 0, a4DragStartY = 0;
-let a4OrigX = 0, a4OrigY = 0;
-let currentCropRatio = 1.0; 
-
-function openA4AdjustModal(sourceCanvas) {
-    return new Promise(resolve => {
-        a4Resolver = resolve;
-        document.getElementById('a4AdjustModal').style.display = 'flex';
-        
-        let drawCanvas = sourceCanvas;
-        if (sourceCanvas.width > sourceCanvas.height) {
-            drawCanvas = document.createElement('canvas');
-            drawCanvas.width = sourceCanvas.height;
-            drawCanvas.height = sourceCanvas.width;
-            const rotCtx = drawCanvas.getContext('2d');
-            rotCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
-            rotCtx.rotate(Math.PI / 2);
-            rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
-        }
-        
-        a4AdjImg = drawCanvas;
-        
-        // Setup initial crop ratio and tick checkbox
-        currentCropRatio = a4AdjImg.height / a4AdjImg.width;
-        document.getElementById('ratioLock').checked = true;
-
-        let startWPercent = 45;
-        let startWPixels = a4CanvasW * (startWPercent / 100);
-
-        let startHPixels = startWPixels * currentCropRatio;
-        let startHPercent = (startHPixels / a4CanvasH) * 100;
-
-        if (startHPercent > 85) {
-            startHPercent = 85;
-            startHPixels = a4CanvasH * (startHPercent / 100);
-            startWPixels = startHPixels / currentCropRatio;
-            startWPercent = (startWPixels / a4CanvasW) * 100;
-        }
-
-        document.getElementById('a4WSlider').value = startWPercent.toFixed(1);
-        document.getElementById('a4HSlider').value = startHPercent.toFixed(1);
-
-        a4AdjState.x = (a4CanvasW - startWPixels) / 2;
-        a4AdjState.y = a4CanvasH * 0.10;
-
-        updateA4Adj();
+    s.ctx.closePath();
+    s.ctx.stroke();
+    s.corners.forEach((corner) => {
+        s.ctx.fillStyle = '#28a745';
+        s.ctx.beginPath();
+        s.ctx.arc(corner.x, corner.y, 14, 0, Math.PI * 2); 
+        s.ctx.fill();
+        s.ctx.strokeStyle = '#fff';
+        s.ctx.lineWidth = 3;
+        s.ctx.stroke();
     });
 }
 
-function cancelA4Adjust() {
-    document.getElementById('a4AdjustModal').style.display = 'none';
-    if (a4Resolver) a4Resolver(null); 
-}
+function projectPerspective(srcImg, corners, targetW, targetH, cvsW, cvsH) {
+    targetW = 856; targetH = 540;
+    const hiddenCanvas = document.createElement('canvas');
+    hiddenCanvas.width = targetW;
+    hiddenCanvas.height = targetH;
+    const ctx = hiddenCanvas.getContext('2d');
 
-function rotateA4Image() {
-    if (!a4AdjImg) return;
-    
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = a4AdjImg.height;
-    tempCanvas.height = a4AdjImg.width;
-    const ctx = tempCanvas.getContext('2d');
-    ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-    ctx.rotate(90 * Math.PI / 180);
-    ctx.drawImage(a4AdjImg, -a4AdjImg.width / 2, -a4AdjImg.height / 2);
-    
-    a4AdjImg = tempCanvas;
-    currentCropRatio = a4AdjImg.height / a4AdjImg.width;
+    const p1 = [corners[0].x / cvsW, corners[0].y / cvsH];
+    const p2 = [corners[1].x / cvsW, corners[1].y / cvsH];
+    const p3 = [corners[2].x / cvsW, corners[2].y / cvsH];
+    const p4 = [corners[3].x / cvsW, corners[3].y / cvsH];
 
-    let oldW = a4AdjState.w;
-    let oldH = a4AdjState.h;
-
-    let cx = a4AdjState.x + oldW / 2;
-    let cy = a4AdjState.y + oldH / 2;
-
-    let newWPercent = (oldH / a4CanvasW) * 100;
-    let newHPercent = (oldW / a4CanvasH) * 100;
-
-    newWPercent = Math.max(5, Math.min(100, newWPercent));
-    newHPercent = Math.max(5, Math.min(100, newHPercent));
-
-    document.getElementById('a4WSlider').value = newWPercent.toFixed(1);
-    document.getElementById('a4HSlider').value = newHPercent.toFixed(1);
-
-    a4AdjState.w = oldH;
-    a4AdjState.h = oldW;
-
-    a4AdjState.x = cx - a4AdjState.w / 2;
-    a4AdjState.y = cy - a4AdjState.h / 2;
-
-    a4AdjState.x = Math.max(0, Math.min(a4AdjState.x, a4CanvasW - a4AdjState.w));
-    a4AdjState.y = Math.max(0, Math.min(a4AdjState.y, a4CanvasH - a4AdjState.h));
-
-    document.getElementById('a4Wtxt').innerText = Math.round(newWPercent) + '%';
-    document.getElementById('a4Htxt').innerText = Math.round(newHPercent) + '%';
-    
-    drawA4Adj();
-}
-
-// 🔥 SMART RATIO LOCK LOGIC
-function toggleRatioLock() {
-    if (document.getElementById('ratioLock').checked) {
-        currentCropRatio = a4AdjImg.height / a4AdjImg.width;
-        onA4WidthChange();
+    for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+            let u = x / targetW; let v = y / targetH;
+            let topX = p1[0] + u * (p2[0] - p1[0]);
+            let topY = p1[1] + u * (p2[1] - p1[1]);
+            let botX = p4[0] + u * (p3[0] - p4[0]);
+            let botY = p4[1] + u * (p3[1] - p4[1]);
+            let srcX = (topX + v * (botX - topX)) * srcImg.width;
+            let srcY = (topY + v * (botY - topY)) * srcImg.height;
+            ctx.drawImage(srcImg, srcX, srcY, 1, 1, x, y, 1, 1);
+        }
     }
-}
 
-function onA4WidthChange() {
-    if (document.getElementById('ratioLock').checked) {
-        let wp = parseFloat(document.getElementById('a4WSlider').value);
-        let wPx = (wp / 100) * a4CanvasW;
-        let hPx = wPx * currentCropRatio;
-        let hp = (hPx / a4CanvasH) * 100;
-        
-        if (hp > 100) {
-            hp = 100;
-            hPx = a4CanvasH;
-            wPx = hPx / currentCropRatio;
-            wp = (wPx / a4CanvasW) * 100;
-            document.getElementById('a4WSlider').value = wp.toFixed(1);
-        }
-        document.getElementById('a4HSlider').value = hp.toFixed(1);
-    }
-    updateA4Adj();
-}
-
-function onA4HeightChange() {
-    if (document.getElementById('ratioLock').checked) {
-        let hp = parseFloat(document.getElementById('a4HSlider').value);
-        let hPx = (hp / 100) * a4CanvasH;
-        let wPx = hPx / currentCropRatio;
-        let wp = (wPx / a4CanvasW) * 100;
-        
-        if (wp > 100) {
-            wp = 100;
-            wPx = a4CanvasW;
-            hPx = wPx * currentCropRatio;
-            hp = (hPx / a4CanvasH) * 100;
-            document.getElementById('a4HSlider').value = hp.toFixed(1);
-        }
-        document.getElementById('a4WSlider').value = wp.toFixed(1);
-    }
-    updateA4Adj();
-}
-
-function updateA4Adj() {
-    let wp = parseFloat(document.getElementById('a4WSlider').value);
-    let hp = parseFloat(document.getElementById('a4HSlider').value);
-    document.getElementById('a4Wtxt').innerText = Math.round(wp) + '%';
-    document.getElementById('a4Htxt').innerText = Math.round(hp) + '%';
-
-    a4AdjState.w = a4CanvasW * (wp / 100);
-    a4AdjState.h = a4CanvasH * (hp / 100);
-
-    drawA4Adj();
-}
-
-function drawA4Adj() {
-    const cvs = document.getElementById('a4AdjustCanvas');
-    const ctx = cvs.getContext('2d');
-    ctx.clearRect(0,0, cvs.width, cvs.height);
-
-    const scaleX = cvs.width / a4CanvasW;
-    const scaleY = cvs.height / a4CanvasH;
-
-    let drawX = a4AdjState.x * scaleX;
-    let drawY = a4AdjState.y * scaleY;
-    let drawW = a4AdjState.w * scaleX;
-    let drawH = a4AdjState.h * scaleY;
-
-    ctx.drawImage(a4AdjImg, drawX, drawY, drawW, drawH);
-
-    ctx.strokeStyle = '#1976d2';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
-    ctx.strokeRect(drawX, drawY, drawW, drawH);
-    ctx.setLineDash([]);
-}
-
-const a4c = document.getElementById('a4AdjustCanvas');
-function getA4Mouse(e) {
-    const rect = a4c.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-        x: (clientX - rect.left) * (a4CanvasW / rect.width),
-        y: (clientY - rect.top) * (a4CanvasH / rect.height)
-    };
-}
-
-a4c.addEventListener('mousedown', startA4Drag);
-a4c.addEventListener('touchstart', startA4Drag, {passive: false});
-
-function startA4Drag(e) {
-    e.preventDefault();
-    const pos = getA4Mouse(e);
-    if (pos.x >= a4AdjState.x && pos.x <= a4AdjState.x + a4AdjState.w &&
-        pos.y >= a4AdjState.y && pos.y <= a4AdjState.y + a4AdjState.h) {
-        isA4Dragging = true;
-        a4DragStartX = pos.x;
-        a4DragStartY = pos.y;
-        a4OrigX = a4AdjState.x;
-        a4OrigY = a4AdjState.y;
-    }
-}
-
-a4c.addEventListener('mousemove', moveA4Drag);
-a4c.addEventListener('touchmove', moveA4Drag, {passive: false});
-
-function moveA4Drag(e) {
-    if (!isA4Dragging) return;
-    e.preventDefault();
-    const pos = getA4Mouse(e);
-    let dx = pos.x - a4DragStartX;
-    let dy = pos.y - a4DragStartY;
-
-    let nx = a4OrigX + dx;
-    let ny = a4OrigY + dy;
-    nx = Math.max(0, Math.min(nx, a4CanvasW - a4AdjState.w));
-    ny = Math.max(0, Math.min(ny, a4CanvasH - a4AdjState.h));
-
-    a4AdjState.x = nx;
-    a4AdjState.y = ny;
-    drawA4Adj();
-}
-
-window.addEventListener('mouseup', () => { isA4Dragging = false; });
-window.addEventListener('touchend', () => { isA4Dragging = false; });
-
-async function confirmA4Adjust() {
-    const btn = document.getElementById('confirmA4Btn');
-    btn.innerText = "⏳ Saving...";
-    btn.disabled = true;
-
-    await new Promise(r => setTimeout(r, 30)); 
-
-    const finalA4 = document.createElement('canvas');
-    finalA4.width = a4CanvasW;
-    finalA4.height = a4CanvasH;
-    const ctx = finalA4.getContext('2d');
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0,0, a4CanvasW, a4CanvasH);
-
-    ctx.drawImage(a4AdjImg, a4AdjState.x, a4AdjState.y, a4AdjState.w, a4AdjState.h);
-
-    const dataUrl = finalA4.toDataURL('image/jpeg', 0.90);
-
-    document.getElementById('a4AdjustModal').style.display = 'none';
-    btn.innerText = "✅ Save";
-    btn.disabled = false;
-
-    if (a4Resolver) a4Resolver(dataUrl);
-}
-
-async function compressImageFast(dataUrl) {
-    if (!dataUrl || dataUrl.length < 500 * 1024) return dataUrl;
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let w = img.width, h = img.height;
-            if (w > 1600 || h > 2260) {
-                let scale = Math.min(1600 / w, 2260 / h);
-                w = Math.round(w * scale);
-                h = Math.round(h * scale);
-            }
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, w, h);
-            ctx.drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL('image/jpeg', 0.85));
-        };
-        img.onerror = () => resolve(dataUrl);
-        img.src = dataUrl;
-        setTimeout(() => resolve(dataUrl), 1000); 
-    });
-}
-
-async function saveCropAndNext() {
-    const s = cropEngine; if (!s.img) return alert("Upload image first.");
-    
-    const btn = document.getElementById("saveCropBtn");
-    btn.disabled = true;
-    btn.style.opacity = "0.5";
-    btn.innerText = "Processing Fast...";
-
-    await new Promise(resolve => setTimeout(resolve, 30));
-
-    try {
-        const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
-        
-        const p1 = [mappedCorners[0].x / s.canvas.width, mappedCorners[0].y / s.canvas.height];
-        const p2 = [mappedCorners[1].x / s.canvas.width, mappedCorners[1].y / s.canvas.height];
-        const p3 = [mappedCorners[2].x / s.canvas.width, mappedCorners[2].y / s.canvas.height];
-        const p4 = [mappedCorners[3].x / s.canvas.width, mappedCorners[3].y / s.canvas.height];
-
-        let targetW = Math.round(Math.max(
-            Math.hypot((p2[0]-p1[0])*s.img.width, (p2[1]-p1[1])*s.img.height),
-            Math.hypot((p3[0]-p4[0])*s.img.width, (p3[1]-p4[1])*s.img.height)
-        ));
-        let targetH = Math.round(Math.max(
-            Math.hypot((p4[0]-p1[0])*s.img.width, (p4[1]-p1[1])*s.img.height),
-            Math.hypot((p3[0]-p2[0])*s.img.width, (p3[1]-p2[0])*s.img.height)
-        ));
-
-        if (targetW > 1800 || targetH > 2500) {
-            const scale = 2000 / Math.max(targetW, targetH);
-            targetW = Math.round(targetW * scale);
-            targetH = Math.round(targetH * scale);
-        }
-
-        let hCvs = document.createElement('canvas'); 
-        hCvs.width = targetW; 
-        hCvs.height = targetH;
-
-        if (typeof cv !== 'undefined' && cv.Mat && typeof cv.imread === 'function') {
-            let printType = document.getElementById("type").value; 
-            let src, dest, srcTri, dstTri, M;
-
-            try {
-                let imgCanvas = document.createElement('canvas');
-                imgCanvas.width = s.img.width; imgCanvas.height = s.img.height;
-                imgCanvas.getContext('2d').drawImage(s.img, 0, 0);
-                src = cv.imread(imgCanvas);
-
-                srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                    p1[0] * src.cols, p1[1] * src.rows, 
-                    p2[0] * src.cols, p2[1] * src.rows, 
-                    p3[0] * src.cols, p3[1] * src.rows, 
-                    p4[0] * src.cols, p4[1] * src.rows  
-                ]);
-                dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-                    0, 0, targetW, 0, targetW, targetH, 0, targetH
-                ]);
-
-                M = cv.getPerspectiveTransform(srcTri, dstTri);
-                dest = new cv.Mat();
-                cv.warpPerspective(src, dest, M, new cv.Size(targetW, targetH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-                let autoCleanEnabled = document.getElementById("autoCleanToggle") ? document.getElementById("autoCleanToggle").value === "on" : true;
-
-                if (printType == "5") {
-                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2GRAY, 0);
-                    
-                    if (autoCleanEnabled) {
-                        let bg = null;
-                        try {
-                            bg = new cv.Mat();
-                            cv.GaussianBlur(dest, bg, new cv.Size(25, 25), 0, 0, cv.BORDER_DEFAULT);
-                            cv.addWeighted(dest, 1.5, bg, -0.5, 0, dest); 
-                            dest.convertTo(dest, -1, 1.15, 5); 
-                        } catch (filterErr) {
-                            console.warn("Clean Filter Failed", filterErr);
-                        } finally {
-                            if (bg) bg.delete();
-                        }
-                    }
-                } else {
-                    cv.cvtColor(dest, dest, cv.COLOR_RGBA2RGB, 0);
-                }
-
-                cv.imshow(hCvs, dest);
-            } catch (e) { 
-                console.warn("Warp/CV Error", e); 
-                hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
-            } finally {
-                if (src) src.delete(); if (dest) dest.delete();
-                if (srcTri) srcTri.delete(); if (dstTri) dstTri.delete(); if (M) M.delete();
-            }
-        } else {
-            hCvs.getContext('2d').drawImage(s.img, 0, 0, targetW, targetH);
-        }
-
-        let docType = document.getElementById("docType") ? document.getElementById("docType").value : "full";
-        let a4DataUrl;
-        
-        if (docType === "fit") {
-            a4DataUrl = await openA4AdjustModal(hCvs);
-            if (!a4DataUrl) {
-                btn.disabled = false;
-                btn.style.opacity = "1";
-                btn.innerText = "Save Crop";
-                return;
-            }
-        } else {
-            a4DataUrl = await convertToA4(hCvs);
-        }
-
-        a4DataUrl = await compressImageFast(a4DataUrl);
-        processedA4Images.push(a4DataUrl);
-        
-        currentImageIndex++;
-        loadCurrentImageForCrop();
-        calculate();
-
-    } catch (err) {
-        console.error("Save Crop Exception:", err);
-        alert("Crop process error! Kripya dobara try karein.");
-        btn.disabled = false;
-        btn.style.opacity = "1";
-        btn.innerText = "Save Crop";
-    }
-}
-            
-async function convertToA4(sourceCanvas) {
-    return new Promise(resolve => {
-        const a4 = document.createElement('canvas'); 
-        a4.width = a4CanvasW; 
-        a4.height = a4CanvasH; 
-        const ctx = a4.getContext('2d'); 
-        ctx.fillStyle = '#FFFFFF'; 
-        ctx.fillRect(0,0,a4.width,a4.height);
-        
-        let drawCanvas = sourceCanvas;
-        if (sourceCanvas.width > sourceCanvas.height) {
-            drawCanvas = document.createElement('canvas');
-            drawCanvas.width = sourceCanvas.height;
-            drawCanvas.height = sourceCanvas.width;
-            const rotCtx = drawCanvas.getContext('2d');
-            rotCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
-            rotCtx.rotate(Math.PI / 2);
-            rotCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
-        }
-        
-        ctx.drawImage(drawCanvas, 0, 0, a4.width, a4.height);
-        resolve(a4.toDataURL("image/jpeg", 0.90));
-    });
-}
-
-function applyPreviewFilter() {
     const isBw = document.getElementById("type").value == 5;
-    if (document.getElementById("previewWrapperFrame")) {
-        document.getElementById("previewWrapperFrame").classList.toggle("force-grayscale", isBw);
+    if (isBw) {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+            data[i] = gray; data[i+1] = gray; data[i+2] = gray;
+        }
+        ctx.putImageData(imgData, 0, 0);
     }
+    return hiddenCanvas;
 }
 
-function calculate() {
-    let copies = parseInt(document.getElementById("copies").value) || 1;
-    let price = parseInt(document.getElementById("type").value);
-    let sheets = 0;
-    
-    if (uploadedImagesList.length > 0) {
-        sheets += uploadedImagesList.length;
+function enhanceCroppedImageOnBrowser(canvasElement) {
+    if (typeof cv === 'undefined') return canvasElement; 
+    try {
+        let src = cv.imread(canvasElement);
+        let labMat = new cv.Mat();
+        let channels = new cv.MatVector();
+        let cl = new cv.Mat();
+        
+        cv.cvtColor(src, labMat, cv.COLOR_RGBA2RGB, 0);
+        cv.cvtColor(labMat, labMat, cv.COLOR_RGB2Lab, 0);
+        cv.split(labMat, channels);
+        
+        let clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        clahe.apply(channels.get(0), cl);
+        channels.set(0, cl);
+        cv.merge(channels, labMat);
+        
+        let enhancedRGB = new cv.Mat();
+        cv.cvtColor(labMat, enhancedRGB, cv.COLOR_Lab2RGB, 0);
+        
+        let blurred = new cv.Mat();
+        cv.GaussianBlur(enhancedRGB, blurred, new cv.Size(0, 0), 3, 3, cv.BORDER_DEFAULT);
+        
+        let dest = new cv.Mat();
+        cv.addWeighted(enhancedRGB, 1.5, blurred, -0.5, 0, dest);
+        
+        cv.imshow(canvasElement, dest);
+        
+        src.delete(); labMat.delete(); channels.delete(); cl.delete();
+        clahe.delete(); enhancedRGB.delete(); blurred.delete(); dest.delete();
+    } catch (e) {
+        console.warn("Local JS CV context dropped:", e);
     }
-    
-    if (uploadedPdfFilesList.length > 0) {
-        let layoutDivisor = parseInt(document.getElementById("layout_mode")?.value) || 1;
-        let selectedPages = parsePageSelection(document.getElementById("pages")?.value || "");
-        let totalPages = selectedPages !== null && selectedPages.length > 0 ? selectedPages.length : totalDetectedPDFPages;
-        sheets += Math.ceil(totalPages / layoutDivisor);
-    }
-    
-    if (sheets === 0) sheets = 1;
-    
-    document.getElementById("total").innerHTML = "Total: ₹" + (sheets * price * copies);
+    return canvasElement;
 }
 
-async function submitOrder() {
+async function saveSide(side) {
+    const s = engine[side];
+    if (!s.img) { alert(`Choose an image for ${side} first.`); return; }
+
+    const buttons = document.querySelectorAll(`button[onclick="saveSide('${side}')"]`);
+    buttons.forEach(btn => {
+        btn.dataset.originalText = btn.innerText; 
+        btn.innerText = "Please wait...";
+        btn.disabled = true;
+    });
+
+    await new Promise(r => setTimeout(r, 100));
+
+    const mappedCorners = s.corners.map(c => ({ x: (c.x - s.offsetX) / s.zoom, y: (c.y - s.offsetY) / s.zoom }));
+    closeFullscreen();
+
+    let resultCanvas = projectPerspective(s.img, mappedCorners, 856, 540, s.canvas.width, s.canvas.height);
+    resultCanvas = enhanceCroppedImageOnBrowser(resultCanvas);
+    
+    const croppedDataUrl = resultCanvas.toDataURL("image/jpeg", 0.90);
+    
+    const previewContainer = document.getElementById(`${side}PreviewContainer`);
+    document.getElementById(`${side}PreviewImg`).src = croppedDataUrl;
+    previewContainer.style.display = "block";
+    applyLiveGrayscalePreviewFilter();
+
+    if (side === 'front') frontDataUrl = croppedDataUrl;
+    else backDataUrl = croppedDataUrl;
+
+    requestAnimationFrame(() => {
+        previewContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    buttons.forEach(btn => {
+        btn.innerText = btn.dataset.originalText;
+        btn.disabled = false;
+    });
+}
+
+function generateMergedA4Blob() {
+    return new Promise((resolve) => {
+        const a4Canvas = document.createElement('canvas');
+        a4Canvas.width = 2480;
+        a4Canvas.height = 3508;
+        const ctx = a4Canvas.getContext('2d');
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
+
+        let frontLoaded = false;
+        let backLoaded = false;
+
+        function drawRoundedCard(img, x, y, width, height, radius) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            
+            ctx.clip();
+            ctx.drawImage(img, x, y, width, height);
+            ctx.restore();
+        }
+
+        const frontImg = new Image();
+        frontImg.onload = function() {
+            drawRoundedCard(frontImg, 150, 150, 1010, 640, 50);
+            frontLoaded = true;
+            checkComplete();
+        };
+        frontImg.src = frontDataUrl;
+
+        if (backDataUrl) {
+            const backImg = new Image();
+            backImg.onload = function() {
+                drawRoundedCard(backImg, 1320, 150, 1010, 640, 50);
+                backLoaded = true;
+                checkComplete();
+            };
+            backImg.src = backDataUrl;
+        } else {
+            backLoaded = true;
+            checkComplete();
+        }
+
+        function checkComplete() {
+            if (frontLoaded && backLoaded) {
+                a4Canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, "image/jpeg", 0.92);
+            }
+        }
+    });
+}
+
+async function submitID() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('admin') === 'vishu') {
         sessionStorage.setItem('adminMode', 'true');
@@ -1162,149 +854,198 @@ async function submitOrder() {
         return;
     }
 
-    if (uploadedPdfFilesList.length === 0 && uploadedImagesList.length === 0) return alert("Please select a document.");
-    
-    if (uploadedImagesList.length > 0 && processedA4Images.length !== uploadedImagesList.length) {
-        return alert("Please crop and save all selected images first.");
-    }
+    const finalName = name || (isAdmin ? "Shop Admin" : "Guest");
+    const finalMobile = mobile || "N/A";
+    const copiesInput = parseInt(document.getElementById("copies").value) || 1;
+    const typeSelect = document.getElementById("type").value;
+    const isBw = typeSelect == 5;
+
+    if (!frontDataUrl) { alert("Save Front crop first."); return; }
 
     const submitBtn = document.getElementById("submitBtn");
-    submitBtn.innerText = "Uploading... Please wait";
+    submitBtn.innerText = "Please wait...";
     submitBtn.disabled = true;
-    submitBtn.style.opacity = "0.5";
+    
+    const finalA4Blob = await generateMergedA4Blob();
 
-    try {
-        let processedBlob = null;
-        let finalMime = "application/pdf";
-        let layoutVal = document.getElementById("layout_mode") ? document.getElementById("layout_mode").value : 1;
+    const prefix = isBw ? "bw_" : "color_";
+    const timestamp = Date.now();
+    const fileName = `${timestamp}_${prefix}merged_a4.jpg`;
 
-        const outPdf = await PDFLib.PDFDocument.create();
-        
-        if (processedA4Images.length > 0) {
-            for (let dataUrl of processedA4Images) {
-                const imgBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-                const image = await outPdf.embedJpg(imgBytes);
-                const page = outPdf.addPage([2480, 3508]); 
-                page.drawImage(image, { x: 0, y: 0, width: 2480, height: 3508 });
-            }
-        }
-
-        if (uploadedPdfFilesList.length > 0) {
-            let pagesSel = parsePageSelection(document.getElementById("pages").value);
-            let globalIndicesToKeep = pagesSel ? pagesSel.map(p => p - 1) : Array.from({length: totalDetectedPDFPages}, (_, i) => i);
-            
-            let globalPdfPageIndex = 0;
-
-            for (let pdfFile of uploadedPdfFilesList) {
-                const arrayBuffer = await pdfFile.arrayBuffer();
-                const uint8Data = new Uint8Array(arrayBuffer);
-                const srcPdfDoc = await PDFLib.PDFDocument.load(uint8Data);
-                
-                let localIndicesToKeep = [];
-                for(let localIdx = 0; localIdx < srcPdfDoc.getPageCount(); localIdx++) {
-                    if (globalIndicesToKeep.includes(globalPdfPageIndex)) {
-                        localIndicesToKeep.push(localIdx);
-                    }
-                    globalPdfPageIndex++;
-                }
-
-                if (localIndicesToKeep.length > 0) {
-                    if (document.getElementById("type").value == 5) {
-                        const pdfjsDoc = await pdfjsLib.getDocument({ data: uint8Data }).promise;
-                        
-                        for (let localIdx of localIndicesToKeep) {
-                            const page = await pdfjsDoc.getPage(localIdx + 1);
-                            const viewport = page.getViewport({ scale: 2.0 }); 
-                            const canvas = document.createElement('canvas');
-                            canvas.width = viewport.width;
-                            canvas.height = viewport.height;
-                            const ctx = canvas.getContext('2d');
-                            
-                            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                            
-                            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            const data = imgData.data;
-                            for (let j = 0; j < data.length; j += 4) {
-                                let gray = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
-                                data[j] = data[j+1] = data[j+2] = gray;
-                            }
-                            ctx.putImageData(imgData, 0, 0);
-                            
-                            const imgDataUrl = canvas.toDataURL("image/jpeg", 0.85);
-                            const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
-                            const embeddedImage = await outPdf.embedJpg(imgBytes);
-                            
-                            const outPage = outPdf.addPage([viewport.width, viewport.height]);
-                            outPage.drawImage(embeddedImage, {
-                                x: 0, y: 0, width: viewport.width, height: viewport.height
-                            });
-                        }
-                    } else {
-                        const copied = await outPdf.copyPages(srcPdfDoc, localIndicesToKeep);
-                        copied.forEach(p => outPdf.addPage(p));
-                    }
-                }
-            }
-        }
-        
-        processedBlob = new Blob([await outPdf.save()], { type: "application/pdf" });
-
-        const ext = ".pdf";
-        const typeSelect = document.getElementById("type");
-        const selectedTypeValue = typeSelect.value;
-        const pre = selectedTypeValue == 5 ? "bw_" : "color_";
-        
-        let baseName = "mixed_doc";
-        if (uploadedPdfFilesList.length > 0) {
-            baseName = uploadedPdfFilesList[0].name.split('.')[0];
-        } else if (uploadedImagesList.length > 0) {
-            baseName = uploadedImagesList[0].name.split('.')[0];
-        }
-        
-        const fileName = `${Date.now()}_${pre}${baseName}${ext}`;
-
-        const { error: uploadError } = await client.storage.from("documents").upload(fileName, processedBlob, { contentType: finalMime, upsert: true });
-        if (uploadError) throw uploadError;
-
-        const copies = document.getElementById("copies").value;
-        const amount = parseInt(document.getElementById("total").innerHTML.replace("Total: ₹", ""));
-        const printStr = `${typeSelect.options[typeSelect.selectedIndex].text}`;
-
-        const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
-        const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
-
-        const { data: order, error } = await client.from("orders").insert([{
-            customer_name: name || (isAdmin ? "Shop Admin" : "Guest"),
-            mobile: mobile || "N/A", 
-            pages: copies, print_type: printStr, amount: amount,
-            file_url: client.storage.from("documents").getPublicUrl(fileName).data.publicUrl, 
-            payment_status: finalPaymentStatus, 
-            payment_id: finalPaymentId,
-            layout_mode: layoutVal
-        }]).select();
-
-        if (error) throw error;
-        
-        localStorage.setItem("last_order_time", Date.now());
-        localStorage.setItem("amount", amount); 
-        localStorage.setItem("mobile", mobile); 
-        localStorage.setItem("current_order_id", order[0].id);
-        
-        if (isAdmin) {
-            alert("👑 Owner Mode: Document sent directly to printer! No payment required.");
-            window.location.reload(); 
-        } else {
-            window.location.href = "payment.html"; 
-        }
-
-    } catch (err) {
-        alert(err.message);
-        submitBtn.innerText = "Submit Order";
+    const uploadResponse = await client.storage.from("documents").upload(fileName, finalA4Blob, { 
+        contentType: "image/jpeg",
+        upsert: true 
+    });
+    
+    if (uploadResponse.error) { 
+        alert("Upload Failed: " + uploadResponse.error.message); 
+        submitBtn.innerText = "Submit Processing Order";
         submitBtn.disabled = false;
-        submitBtn.style.opacity = "1";
+        return; 
+    }
+
+    const publicUrl = client.storage.from("documents").getPublicUrl(fileName).data.publicUrl;
+    let baseRate = isBw ? 5 : 10;
+    let totalAmountCalculation = copiesInput * baseRate;
+
+    const printLabel = isBw ? "Black & White" : "Color";
+    const orderLabelText = `Document ID - ${printLabel} [${copiesInput} Copies]`;
+
+    const finalPaymentStatus = isAdmin ? "Paid (Admin)" : "Pending";
+    const finalPaymentId = isAdmin ? "Direct-Shop-Print" : "";
+
+    const { data: insertedOrder, error } = await client.from("orders").insert([{
+        customer_name: finalName, mobile: finalMobile, print_type: orderLabelText, pages: copiesInput, amount: totalAmountCalculation,
+        file_url: publicUrl, front_url: null, back_url: null, 
+        payment_status: finalPaymentStatus, 
+        payment_id: finalPaymentId
+    }]).select();
+
+    if (error) { 
+        alert("Database Insertion Error: " + error.message); 
+        submitBtn.innerText = "Submit Processing Order";
+        submitBtn.disabled = false;
+        return; 
+    }
+
+    localStorage.setItem("last_order_time", Date.now());
+
+    if (isAdmin) {
+        alert("👑 Owner Mode: ID Card sent directly to printer! No payment required.");
+        window.location.reload(); 
+    } else {
+        localStorage.setItem("amount", totalAmountCalculation);
+        localStorage.setItem("mobile", finalMobile);
+        localStorage.setItem("printType", "id");
+        if (insertedOrder && insertedOrder.length > 0) localStorage.setItem("current_order_id", insertedOrder[0].id); 
+        window.location.href = "payment.html"; 
     }
 }
-</script>
 
+['front', 'back'].forEach((side) => {
+    const canvas = engine[side].canvas;
+    let lastX = 0; let lastY = 0;
+    
+    function getCanvasCoordinates(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { 
+            x: (clientX - rect.left) * (canvas.width / rect.width), 
+            y: (clientY - rect.top) * (canvas.height / rect.height) 
+        };
+    }
+
+    canvas.addEventListener('touchstart', function(e) {
+        const s = engine[side]; if (!s.img) return;
+        
+        if (e.touches.length === 2) {
+            s.activeCorner = -1;
+            s.isPanning = false;
+            s.lastTouchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            s.lastTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            s.lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        } else if (e.touches.length === 1) {
+            const pos = getCanvasCoordinates(e);
+            s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
+            
+            if (s.activeCorner === -1 && s.zoom > 1) { 
+                s.isPanning = true; 
+                lastX = e.touches[0].clientX; 
+                lastY = e.touches[0].clientY; 
+            }
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function(e) {
+        const s = engine[side]; if (!s.img) return;
+        if (e.cancelable) e.preventDefault(); 
+
+        if (e.touches.length === 2) {
+            const currentDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+            let scaleFactor = currentDist / s.lastTouchDist;
+            let newZoom = s.zoom * scaleFactor;
+            newZoom = Math.max(1, Math.min(8, newZoom)); 
+
+            const rect = canvas.getBoundingClientRect();
+            const canvasCenterX = (currentX - rect.left) * (canvas.width / rect.width);
+            const canvasCenterY = (currentY - rect.top) * (canvas.height / rect.height);
+
+            s.offsetX = canvasCenterX - (canvasCenterX - s.offsetX) * (newZoom / s.zoom);
+            s.offsetY = canvasCenterY - (canvasCenterY - s.offsetY) * (newZoom / s.zoom);
+            
+            s.zoom = newZoom;
+            s.offsetX += (currentX - s.lastTouchX);
+            s.offsetY += (currentY - s.lastTouchY);
+
+            s.lastTouchDist = currentDist;
+            s.lastTouchX = currentX;
+            s.lastTouchY = currentY;
+
+            if (s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+            draw(side);
+        } else if (e.touches.length === 1) {
+            if (s.activeCorner !== -1) {
+                const pos = getCanvasCoordinates(e);
+                s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
+                draw(side);
+            } else if (s.isPanning) {
+                s.offsetX += (e.touches[0].clientX - lastX); 
+                s.offsetY += (e.touches[0].clientY - lastY);
+                lastX = e.touches[0].clientX; 
+                lastY = e.touches[0].clientY; 
+                draw(side);
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', function() { 
+        engine[side].activeCorner = -1; 
+        engine[side].isPanning = false; 
+    });
+
+    canvas.addEventListener('mousedown', function(e) {
+        const s = engine[side]; if (!s.img) return;
+        const pos = getCanvasCoordinates(e);
+        s.activeCorner = s.corners.findIndex(c => Math.hypot(c.x - pos.x, c.y - pos.y) < 45);
+        if (s.activeCorner === -1 && s.zoom > 1) { s.isPanning = true; lastX = e.clientX; lastY = e.clientY; }
+    });
+    
+    canvas.addEventListener('mousemove', function(e) {
+        const s = engine[side]; if (!s.img) return;
+        if (s.activeCorner !== -1) {
+            const pos = getCanvasCoordinates(e);
+            s.corners[s.activeCorner] = { x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) };
+            draw(side);
+        } else if (s.isPanning) {
+            s.offsetX += (e.clientX - lastX); s.offsetY += (e.clientY - lastY);
+            lastX = e.clientX; lastY = e.clientY; draw(side);
+        }
+    });
+    window.addEventListener('mouseup', function() { engine[side].activeCorner = -1; engine[side].isPanning = false; });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const s = engine[side]; if (!s.img) return;
+        const mouse = getCanvasCoordinates(e);
+        let newZoom = e.deltaY < 0 ? s.zoom * 1.1 : s.zoom / 1.1;
+        newZoom = Math.max(1, Math.min(8, newZoom));
+        s.offsetX = mouse.x - (mouse.x - s.offsetX) * (newZoom / s.zoom);
+        s.offsetY = mouse.y - (mouse.y - s.offsetY) * (newZoom / s.zoom);
+        s.zoom = newZoom;
+        if(s.zoom === 1) { s.offsetX = 0; s.offsetY = 0; }
+        draw(side);
+    }, { passive: false });
+});
+</script>
 </body>
 </html>
