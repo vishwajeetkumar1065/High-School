@@ -377,22 +377,8 @@ async function handleFileSelectionChange(){
         }
     }
 
-    if (uploadedPdfFilesList.length > 0) {
-        try {
-            for (let pdf of uploadedPdfFilesList) {
-                const arrayBuffer = await pdf.arrayBuffer();
-                const uint8Data = new Uint8Array(arrayBuffer);
-                const srcPdf = await PDFLib.PDFDocument.load(uint8Data);
-                totalDetectedPDFPages += srcPdf.getPageCount();
-            }
-        } catch (err) {
-            console.error("PDF Parsing Error:", err);
-            alert("⚠️ Error: PDF file load nahi ho saki. File corrupted ho sakti hai.");
-            document.getElementById("file").value = ""; 
-            return;
-        }
-    }
-
+    // Image crop UI turant dikhao — PDF parsing ka wait nahi karna, warna slow/corrupted
+    // PDF ki wajah se image preview bhi block ho jata tha.
     if (uploadedImagesList.length > 0) {
         document.getElementById("pdfUI").style.display = "none";
         document.getElementById("imageUI").style.display = "block";
@@ -402,12 +388,30 @@ async function handleFileSelectionChange(){
         
         loadCurrentImageForCrop();
         calculate();
-    } else if (uploadedPdfFilesList.length > 0) {
-        document.getElementById("pdfUI").style.display = "block";
-        document.getElementById("imageUI").style.display = "none";
-        document.getElementById("docTypeGroup").style.display = "none";
-        
-        await previewDocument();
+    }
+
+    if (uploadedPdfFilesList.length > 0) {
+        try {
+            for (let pdf of uploadedPdfFilesList) {
+                const arrayBuffer = await pdf.arrayBuffer();
+                const uint8Data = new Uint8Array(arrayBuffer);
+                const srcPdf = await PDFLib.PDFDocument.load(uint8Data, { ignoreEncryption: true });
+                totalDetectedPDFPages += srcPdf.getPageCount();
+            }
+        } catch (err) {
+            console.error("PDF Parsing Error:", err);
+            alert("⚠️ Error: Ek ya zyada PDF file load nahi ho saki (corrupted ya password-protected ho sakti hai). Baaki selection ke saath aage badh sakte hain.");
+            uploadedPdfFilesList = [];
+            totalDetectedPDFPages = 0;
+            document.getElementById("pdfUI").style.display = "none";
+        }
+
+        if (uploadedImagesList.length === 0 && uploadedPdfFilesList.length > 0) {
+            document.getElementById("pdfUI").style.display = "block";
+            document.getElementById("imageUI").style.display = "none";
+            document.getElementById("docTypeGroup").style.display = "none";
+            await previewDocument();
+        }
         calculate();
     }
 }
@@ -435,32 +439,7 @@ function loadCurrentImageForCrop() {
             previewDocument();
         } else {
             document.getElementById("cropPreviewContainer").style.display = "block";
-            document.getElementById("imageStatus").innerText = `Successfully Processed ${uploadedImagesList.length} Image(s)`;
-            
-            const gallery = document.getElementById("thumbnailGallery");
-            gallery.innerHTML = ""; 
-            
-            processedA4Images.forEach((dataUrl, index) => {
-                const imgWrap = document.createElement("div");
-                imgWrap.style.flex = "0 0 auto";
-                
-                const img = document.createElement("img");
-                img.src = dataUrl;
-                img.style.height = "120px"; 
-                img.style.border = "1px solid #ccc";
-                img.style.borderRadius = "4px";
-                img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-                
-                const label = document.createElement("div");
-                label.innerText = `Page ${index + 1}`;
-                label.style.fontSize = "11px";
-                label.style.color = "#555";
-                label.style.marginTop = "4px";
-                
-                imgWrap.appendChild(img);
-                imgWrap.appendChild(label);
-                gallery.appendChild(imgWrap);
-            });
+            renderThumbnailGallery();
         }
         return;
     }
@@ -517,6 +496,74 @@ function loadCurrentImageForCrop() {
         img.src = e.target.result;
     };
     reader.readAsDataURL(uploadedImagesList[currentImageIndex]);
+}
+
+function renderThumbnailGallery() {
+    document.getElementById("imageStatus").innerText = uploadedImagesList.length > 0
+        ? `Successfully Processed ${uploadedImagesList.length} Image(s)`
+        : `No images added`;
+
+    const gallery = document.getElementById("thumbnailGallery");
+    gallery.innerHTML = "";
+
+    processedA4Images.forEach((dataUrl, index) => {
+        const imgWrap = document.createElement("div");
+        imgWrap.style.flex = "0 0 auto";
+        imgWrap.style.position = "relative";
+        imgWrap.style.paddingTop = "8px";
+
+        const img = document.createElement("img");
+        img.src = dataUrl;
+        img.style.height = "120px";
+        img.style.display = "block";
+        img.style.border = "1px solid #ccc";
+        img.style.borderRadius = "4px";
+        img.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.innerText = "✕";
+        delBtn.title = "Is image ko delete karein";
+        delBtn.onclick = () => deleteProcessedImage(index);
+        delBtn.style.position = "absolute";
+        delBtn.style.top = "0";
+        delBtn.style.right = "-6px";
+        delBtn.style.width = "22px";
+        delBtn.style.height = "22px";
+        delBtn.style.borderRadius = "50%";
+        delBtn.style.border = "2px solid #fff";
+        delBtn.style.background = "#dc3545";
+        delBtn.style.color = "#fff";
+        delBtn.style.fontSize = "12px";
+        delBtn.style.fontWeight = "bold";
+        delBtn.style.lineHeight = "1";
+        delBtn.style.cursor = "pointer";
+        delBtn.style.display = "flex";
+        delBtn.style.alignItems = "center";
+        delBtn.style.justifyContent = "center";
+        delBtn.style.boxShadow = "0 1px 3px rgba(0,0,0,0.4)";
+        delBtn.style.padding = "0";
+
+        const label = document.createElement("div");
+        label.innerText = `Page ${index + 1}`;
+        label.style.fontSize = "11px";
+        label.style.color = "#555";
+        label.style.marginTop = "4px";
+        label.style.textAlign = "center";
+
+        imgWrap.appendChild(img);
+        imgWrap.appendChild(delBtn);
+        imgWrap.appendChild(label);
+        gallery.appendChild(imgWrap);
+    });
+}
+
+function deleteProcessedImage(index) {
+    processedA4Images.splice(index, 1);
+    uploadedImagesList.splice(index, 1);
+    currentImageIndex = uploadedImagesList.length;
+    renderThumbnailGallery();
+    calculate();
 }
 
 function updateLivePreviewGrid() {
