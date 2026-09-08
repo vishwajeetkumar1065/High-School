@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Phone Cam Streamer</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #111; color: #fff; }
+    video, canvas { display: none; }
+    input, button { padding: 12px 16px; font-size: 16px; border-radius: 8px; border: none; margin: 8px 0; }
+    button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+    #status { font-size: 14px; color: #aaa; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <h2>Phone to PC Webcam</h2>
+  <input type="text" id="pcIp" placeholder="Enter PC IP (e.g., 192.168.1.5)" />
+  <button id="startBtn">Start Streaming</button>
+  <p id="status">Disconnected</p>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="1280" height="720"></canvas>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const pcIpInput = document.getElementById('pcIp');
+    const statusText = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let ws = null;
+
+    startBtn.onclick = async () => {
+      const ip = pcIpInput.value.trim();
+      if (!ip) {
+        alert("Please provide the PC's local IP address.");
+        return;
+      }
+
+      statusText.innerText = "Accessing camera...";
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment', // Rear camera; use 'user' for front
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        video.play();
+
+        statusText.innerText = "Connecting to PC...";
+        ws = new WebSocket(`ws://${ip}:8765`);
+
+        ws.onopen = () => {
+          statusText.innerText = "Streaming live to PC!";
+          startBtn.disabled = true;
+
+          // Stream frames at ~30 FPS
+          setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              canvas.toBlob((blob) => {
+                if (blob) ws.send(blob);
+              }, 'image/jpeg', 0.65); // 65% quality balances bandwidth and clarity
+            }
+          }, 1000 / 30);
+        };
+
+        ws.onclose = () => { statusText.innerText = "Disconnected from PC."; startBtn.disabled = false; };
+        ws.onerror = () => { statusText.innerText = "Network connection failed."; startBtn.disabled = false; };
+
+      } catch (err) {
+        alert("Camera error: " + err.message);
+        statusText.innerText = "Camera access denied.";
+      }
+    };
+  </script>
+</body>
+</html>
