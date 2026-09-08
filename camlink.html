@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>camlink</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #14171c;
+    --panel: #1b1f26;
+    --panel-2: #20252d;
+    --border: #2b313c;
+    --text: #e9ebee;
+    --dim: #8a92a1;
+    --accent: #ff5a36;
+    --accent-soft: rgba(255,90,54,0.14);
+    --ok: #4ade80;
+    --ok-soft: rgba(74,222,128,0.14);
+    --err: #f0605a;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html,body{
+    margin:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body{
+    min-height: 100vh;
+    display:flex;
+    justify-content:center;
+    padding: 28px 16px 48px;
+  }
+
+  .wrap{
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom: 4px;
+  }
+  .brand .dot{
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--dim);
+    flex-shrink:0;
+    transform: translateY(-2px);
+  }
+  .brand .dot.live{ background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+  .brand .dot.ok{ background: var(--ok); animation: none; box-shadow: 0 0 0 3px var(--ok-soft); }
+  @keyframes pulse{
+    0%,100%{ box-shadow: 0 0 0 0 var(--accent-soft); }
+    50%{ box-shadow: 0 0 0 5px var(--accent-soft); }
+  }
+  .brand h1{
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  .tagline{
+    color: var(--dim);
+    font-size: 14px;
+    margin: 0 0 22px;
+    line-height: 1.5;
+  }
+
+  .toggle{
+    display:flex;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 20px;
+  }
+  .toggle button{
+    flex:1;
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 8px;
+    border-radius: 7px;
+    cursor:pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .toggle button.active{
+    background: var(--panel-2);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+  }
+
+  .panel h2{
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .panel .sub{
+    color: var(--dim);
+    font-size: 13px;
+    margin: 0 0 18px;
+    line-height: 1.5;
+  }
+
+  .code-display{
+    text-align:center;
+    padding: 22px 12px;
+    background: var(--panel-2);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+  .code-display .label{
+    color: var(--dim);
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .code-display .code{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+  }
+
+  input.code-input{
+    width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-align: center;
+    text-transform: uppercase;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 14px 10px;
+    margin-bottom: 14px;
+    outline: none;
+  }
+  input.code-input:focus{ border-color: var(--accent); }
+  input.code-input::placeholder{ color: #4a505c; letter-spacing: 0.1em; }
+
+  button.primary{
+    width:100%;
+    background: var(--accent);
+    color: #14171c;
+    border: none;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 13px;
+    border-radius: 10px;
+    cursor:pointer;
+    transition: filter .15s ease, opacity .15s ease;
+  }
+  button.primary:hover{ filter: brightness(1.08); }
+  button.primary:disabled{ opacity: .5; cursor: default; filter:none; }
+
+  button.ghost{
+    width:100%;
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: 10px;
+    cursor:pointer;
+    margin-top: 10px;
+  }
+  button.ghost:hover{ color: var(--text); border-color: var(--dim); }
+
+  .status{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--dim);
+    margin: 14px 2px 0;
+    min-height: 18px;
+  }
+  .status .sdot{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--dim);
+    flex-shrink:0;
+  }
+  .status.ok .sdot{ background: var(--ok); }
+  .status.ok{ color: var(--ok); }
+  .status.error .sdot{ background: var(--err); }
+  .status.error{ color: var(--err); }
+
+  .viewfinder{
+    position: relative;
+    margin-top: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #05070a;
+    aspect-ratio: 4 / 3;
+  }
+  .viewfinder video{
+    width:100%; height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .viewfinder.mirror video{ transform: scaleX(-1); }
+  .viewfinder::before, .viewfinder::after,
+  .corner-tl, .corner-tr, .corner-bl, .corner-br{
+    content:'';
+    position:absolute;
+    width: 22px; height: 22px;
+    border-color: var(--accent);
+    opacity: .85;
+    pointer-events:none;
+  }
+  .corner-tl{ top:10px; left:10px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
+  .corner-tr{ top:10px; right:10px; border-top:2px solid var(--accent); border-right:2px solid var(--accent); }
+  .corner-bl{ bottom:10px; left:10px; border-bottom:2px solid var(--accent); border-left:2px solid var(--accent); }
+  .corner-br{ bottom:10px; right:10px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
+
+  .viewfinder .empty{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    color: #4a505c;
+    font-size: 13px;
+    text-align:center;
+    padding: 20px;
+  }
+
+  .hint{
+    color: var(--dim);
+    font-size: 12px;
+    line-height:1.6;
+    margin-top: 16px;
+  }
+
+  .hidden{ display:none !important; }
+
+  .fs-overlay{
+    position: fixed; inset: 0;
+    background: #000;
+    z-index: 9999;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fs-overlay video{ width:100%; height:100%; object-fit: contain; }
+  .fs-exit{
+    position:absolute; top:16px; right:16px;
+    background: rgba(20,23,28,0.75);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .fs-exit:hover{ background: rgba(20,23,28,0.95); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <span class="dot" id="brandDot"></span>
+    <h1>camlink</h1>
+  </div>
+  <p class="tagline">Turn your phone into a webcam for this computer. No app, no cables — just a code.</p>
+
+  <div class="toggle">
+    <button id="tabPhone" class="active">Be the camera</button>
+    <button id="tabPc">Watch the feed</button>
+  </div>
+
+  <!-- PHONE / CAMERA MODE -->
+  <div class="panel" id="panelPhone">
+    <h2>Start the camera</h2>
+    <p class="sub">Tap start, allow camera access, then type the code shown here into camlink on your computer.</p>
+
+    <div class="code-display hidden" id="codeDisplay">
+      <div class="label">your code</div>
+      <div class="code" id="codeText">— — — —</div>
+    </div>
+
+    <button class="primary" id="btnStartCamera">Start camera</button>
+
+    <div class="status" id="phoneStatus"><span class="sdot"></span><span class="txt">not started</span></div>
+
+    <div class="viewfinder mirror hidden" id="phoneViewfinder">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <div class="corner-tl"></div><div class="corner-tr"></div><div class="corner-bl"></div><div class="corner-br"></div>
+    </div>
+
+    <button class="ghost hidden" id="btnResetPhone">Start over</button>
+  </div>
+
+  <!-- PC / VIEWER MODE -->
+  <div class="panel hidden" id="panelPc">
+    <h2>Watch the feed</h2>
+    <p class="sub">Open camlink on your phone, tap "Be the camera", then enter the code it shows you below.</p>
+
+    <input class="code-input" id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button class="primary" id="btnConnect">Connect</button>
+
+    <div class="status" id="pcStatus"><span class="sdot"></span><span class="txt">not connected</span></div>
+
+    <div class="viewfinder" id="pcViewfinder">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="empty" id="pcEmpty">Waiting for a connection…</div>
+      <div class="corner-tl"></div><div class="corner-tr"></div><div class="corner-bl"></div><div class="corner-br"></div>
+    </div>
+
+    <button class="ghost hidden" id="btnFullscreen">Full-screen view (for OBS or screen-share)</button>
+    <button class="ghost hidden" id="btnResetPc">Start over</button>
+  </div>
+
+  <p class="hint">Both devices need internet access for the initial handshake; once connected, video flows directly between them, so it stays on your local network if both are on the same Wi-Fi. The code is only valid for one session — anyone with it could connect while it's active, so treat it like a temporary password.</p>
+
+</div>
+
+<div class="fs-overlay hidden" id="fsOverlay">
+  <video id="fsVideo" autoplay playsinline></video>
+  <button class="fs-exit" id="btnExitFs">Exit full-screen</button>
+</div>
+
+<script>
+const ICE_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+// ---------- storage helpers (shared, best-effort) ----------
+async function storageGet(key){
+  try{
+    const res = await window.storage.get(key, true);
+    return res ? res.value : null;
+  }catch(e){ return null; }
+}
+async function storageSet(key, value){
+  try{ return await window.storage.set(key, value, true); }
+  catch(e){ return null; }
+}
+async function storageDelete(key){
+  try{ return await window.storage.delete(key, true); }
+  catch(e){ return null; }
+}
+
+function generateCode(){
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+  let out = '';
+  for(let i=0;i<4;i++) out += chars[Math.floor(Math.random()*chars.length)];
+  return out;
+}
+
+// ---------- tab switching ----------
+const tabPhone = document.getElementById('tabPhone');
+const tabPc = document.getElementById('tabPc');
+const panelPhone = document.getElementById('panelPhone');
+const panelPc = document.getElementById('panelPc');
+
+tabPhone.addEventListener('click', () => {
+  tabPhone.classList.add('active');
+  tabPc.classList.remove('active');
+  panelPhone.classList.remove('hidden');
+  panelPc.classList.add('hidden');
+});
+tabPc.addEventListener('click', () => {
+  tabPc.classList.add('active');
+  tabPhone.classList.remove('active');
+  panelPc.classList.remove('hidden');
+  panelPhone.classList.add('hidden');
+});
+
+// ---------- shared state ----------
+let phonePc = null, phonePoll = null, phoneStream = null, phoneCode = null;
+let pcPc = null, pcPoll = null, pcCode = null;
+
+function setStatus(el, text, kind){
+  el.classList.remove('ok','error');
+  if(kind) el.classList.add(kind);
+  el.querySelector('.txt').textContent = text;
+}
+
+const brandDot = document.getElementById('brandDot');
+
+// ================= PHONE / CAMERA SIDE =================
+const btnStartCamera = document.getElementById('btnStartCamera');
+const btnResetPhone = document.getElementById('btnResetPhone');
+const codeDisplay = document.getElementById('codeDisplay');
+const codeText = document.getElementById('codeText');
+const phoneStatusEl = document.getElementById('phoneStatus');
+const phoneViewfinder = document.getElementById('phoneViewfinder');
+const localVideo = document.getElementById('localVideo');
+
+btnStartCamera.addEventListener('click', startCamera);
+btnResetPhone.addEventListener('click', resetPhone);
+
+async function startCamera(){
+  btnStartCamera.disabled = true;
+  setStatus(phoneStatusEl, 'requesting camera access…');
+
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+  }catch(err){
+    setStatus(phoneStatusEl, 'camera access blocked — allow it and try again', 'error');
+    btnStartCamera.disabled = false;
+    return;
+  }
+
+  phoneStream = stream;
+  localVideo.srcObject = stream;
+  phoneViewfinder.classList.remove('hidden');
+
+  phoneCode = generateCode();
+  codeText.textContent = phoneCode.split('').join(' ');
+  codeDisplay.classList.remove('hidden');
+  btnResetPhone.classList.remove('hidden');
+  btnStartCamera.classList.add('hidden');
+
+  setStatus(phoneStatusEl, 'camera ready — waiting for your computer to connect…');
+  brandDot.classList.add('live');
+
+  // clear any stale session data at this (unlikely) reused code
+  await Promise.all([
+    storageDelete(`camlink:${phoneCode}:offer`),
+    storageDelete(`camlink:${phoneCode}:answer`),
+    storageDelete(`camlink:${phoneCode}:offerCandidates`),
+    storageDelete(`camlink:${phoneCode}:answerCandidates`),
+  ]);
+
+  phonePc = new RTCPeerConnection(ICE_CONFIG);
+  stream.getTracks().forEach(t => phonePc.addTrack(t, stream));
+
+  let sentCandidates = [];
+  phonePc.onicecandidate = async (e) => {
+    if(e.candidate){
+      sentCandidates.push(e.candidate.toJSON());
+      await storageSet(`camlink:${phoneCode}:offerCandidates`, JSON.stringify(sentCandidates));
+    }
+  };
+  phonePc.onconnectionstatechange = () => {
+    const st = phonePc.connectionState;
+    if(st === 'connected'){
+      setStatus(phoneStatusEl, 'connected — your computer is watching', 'ok');
+      brandDot.classList.remove('live'); brandDot.classList.add('ok');
+    } else if(st === 'disconnected' || st === 'failed' || st === 'closed'){
+      setStatus(phoneStatusEl, 'connection lost', 'error');
+      brandDot.classList.remove('live','ok');
+    }
+  };
+
+  const offer = await phonePc.createOffer();
+  await phonePc.setLocalDescription(offer);
+  await storageSet(`camlink:${phoneCode}:offer`, JSON.stringify(offer));
+
+  let answered = false;
+  let seenAnswerCandidates = 0;
+
+  phonePoll = setInterval(async () => {
+    if(!answered){
+      const ans = await storageGet(`camlink:${phoneCode}:answer`);
+      if(ans){
+        answered = true;
+        try{
+          await phonePc.setRemoteDescription(JSON.parse(ans));
+          setStatus(phoneStatusEl, 'linking up…');
+        }catch(e){}
+      }
+    }else{
+      const raw = await storageGet(`camlink:${phoneCode}:answerCandidates`);
+      if(raw){
+        const cands = JSON.parse(raw);
+        for(let i = seenAnswerCandidates; i < cands.length; i++){
+          try{ await phonePc.addIceCandidate(cands[i]); }catch(e){}
+        }
+        seenAnswerCandidates = cands.length;
+      }
+    }
+  }, 1500);
+}
+
+function resetPhone(){
+  if(phonePoll) clearInterval(phonePoll);
+  if(phonePc){ try{ phonePc.close(); }catch(e){} }
+  if(phoneStream){ phoneStream.getTracks().forEach(t => t.stop()); }
+  const code = phoneCode;
+  phonePc = null; phoneStream = null; phoneCode = null; phonePoll = null;
+
+  localVideo.srcObject = null;
+  phoneViewfinder.classList.add('hidden');
+  codeDisplay.classList.add('hidden');
+  btnResetPhone.classList.add('hidden');
+  btnStartCamera.classList.remove('hidden');
+  btnStartCamera.disabled = false;
+  setStatus(phoneStatusEl, 'not started');
+  brandDot.classList.remove('live','ok');
+
+  if(code){
+    storageDelete(`camlink:${code}:offer`);
+    storageDelete(`camlink:${code}:answer`);
+    storageDelete(`camlink:${code}:offerCandidates`);
+    storageDelete(`camlink:${code}:answerCandidates`);
+  }
+}
+
+// ================= PC / VIEWER SIDE =================
+const codeInput = document.getElementById('codeInput');
+const btnConnect = document.getElementById('btnConnect');
+const btnResetPc = document.getElementById('btnResetPc');
+const btnFullscreen = document.getElementById('btnFullscreen');
+const pcStatusEl = document.getElementById('pcStatus');
+const pcEmpty = document.getElementById('pcEmpty');
+const remoteVideo = document.getElementById('remoteVideo');
+
+codeInput.addEventListener('input', () => {
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+});
+codeInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') connectToCamera();
+});
+btnConnect.addEventListener('click', connectToCamera);
+btnResetPc.addEventListener('click', resetPc);
+
+async function connectToCamera(){
+  const code = codeInput.value.trim();
+  if(code.length < 4){
+    setStatus(pcStatusEl, 'enter the 4-character code from your phone', 'error');
+    return;
+  }
+  pcCode = code;
+  btnConnect.disabled = true;
+  codeInput.disabled = true;
+  setStatus(pcStatusEl, 'looking for camera…');
+
+  pcPc = new RTCPeerConnection(ICE_CONFIG);
+
+  pcPc.ontrack = (e) => {
+    remoteVideo.srcObject = e.streams[0];
+    fsVideo.srcObject = e.streams[0];
+    pcEmpty.classList.add('hidden');
+    setStatus(pcStatusEl, 'connected — live', 'ok');
+    brandDot.classList.remove('live'); brandDot.classList.add('ok');
+    btnFullscreen.classList.remove('hidden');
+  };
+
+  let sentCandidates = [];
+  pcPc.onicecandidate = async (e) => {
+    if(e.candidate){
+      sentCandidates.push(e.candidate.toJSON());
+      await storageSet(`camlink:${pcCode}:answerCandidates`, JSON.stringify(sentCandidates));
+    }
+  };
+  pcPc.onconnectionstatechange = () => {
+    const st = pcPc.connectionState;
+    if(st === 'disconnected' || st === 'failed' || st === 'closed'){
+      setStatus(pcStatusEl, 'connection lost', 'error');
+      brandDot.classList.remove('live','ok');
+    }
+  };
+
+  let offerFound = false;
+  let seenOfferCandidates = 0;
+  let attempts = 0;
+
+  btnResetPc.classList.remove('hidden');
+
+  pcPoll = setInterval(async () => {
+    attempts++;
+    if(!offerFound){
+      const offerRaw = await storageGet(`camlink:${pcCode}:offer`);
+      if(offerRaw){
+        offerFound = true;
+        try{
+          await pcPc.setRemoteDescription(JSON.parse(offerRaw));
+          const answer = await pcPc.createAnswer();
+          await pcPc.setLocalDescription(answer);
+          await storageSet(`camlink:${pcCode}:answer`, JSON.stringify(answer));
+          setStatus(pcStatusEl, 'linking up…');
+        }catch(e){
+          setStatus(pcStatusEl, 'something went wrong — try again', 'error');
+          clearInterval(pcPoll);
+        }
+      }else if(attempts > 24){
+        setStatus(pcStatusEl, 'no camera found with that code — check it and retry', 'error');
+        clearInterval(pcPoll);
+        btnConnect.disabled = false;
+        codeInput.disabled = false;
+      }
+    }else{
+      const raw = await storageGet(`camlink:${pcCode}:offerCandidates`);
+      if(raw){
+        const cands = JSON.parse(raw);
+        for(let i = seenOfferCandidates; i < cands.length; i++){
+          try{ await pcPc.addIceCandidate(cands[i]); }catch(e){}
+        }
+        seenOfferCandidates = cands.length;
+      }
+    }
+  }, 1500);
+}
+
+const fsOverlay = document.getElementById('fsOverlay');
+const fsVideo = document.getElementById('fsVideo');
+const btnExitFs = document.getElementById('btnExitFs');
+
+btnFullscreen.addEventListener('click', async () => {
+  fsOverlay.classList.remove('hidden');
+  try{ await fsOverlay.requestFullscreen(); }catch(e){}
+});
+btnExitFs.addEventListener('click', exitFs);
+document.addEventListener('fullscreenchange', () => {
+  if(!document.fullscreenElement) fsOverlay.classList.add('hidden');
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') exitFs();
+});
+function exitFs(){
+  if(document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
+  fsOverlay.classList.add('hidden');
+}
+
+function resetPc(){
+  if(pcPoll) clearInterval(pcPoll);
+  if(pcPc){ try{ pcPc.close(); }catch(e){} }
+  pcPc = null; pcPoll = null; pcCode = null;
+
+  remoteVideo.srcObject = null;
+  fsVideo.srcObject = null;
+  pcEmpty.classList.remove('hidden');
+  btnFullscreen.classList.add('hidden');
+  btnResetPc.classList.add('hidden');
+  exitFs();
+  btnConnect.disabled = false;
+  codeInput.disabled = false;
+  codeInput.value = '';
+  setStatus(pcStatusEl, 'not connected');
+  brandDot.classList.remove('live','ok');
+}
+</script>
+</body>
+</html>
